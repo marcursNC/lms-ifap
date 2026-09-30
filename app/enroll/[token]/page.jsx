@@ -1,0 +1,6 @@
+'use client'
+import {useEffect,useState} from 'react'
+import {useParams,useRouter} from 'next/navigation'
+import Shell from '../../../components/Shell'
+import {createClient} from '../../../lib/supabase-browser'
+export default function EnrollLink(){const {token}=useParams();const router=useRouter();const [busy,setBusy]=useState(true),[error,setError]=useState(''),[ok,setOk]=useState(false);useEffect(()=>{(async()=>{const s=createClient();const {data:{user}}=await s.auth.getUser();if(!user){router.push(`/login?next=/enroll/${token}`);return}const {error}=await s.rpc('enroll_with_link',{p_token:token});if(error)setError(error.message);else setOk(true);setBusy(false)})()},[token]);return <Shell active="catalog"><div className="card" style={{maxWidth:620,margin:'80px auto',textAlign:'center'}}>{busy?<><div className="eyebrow">INSCRIPTION</div><h1>Vérification du lien…</h1></>:ok?<><div className="enrolled-state">✓</div><h1>Vous êtes inscrit</h1><p>Votre inscription a bien été enregistrée. Vous pouvez maintenant accéder à votre formation.</p><button className="btn" onClick={()=>router.push('/learner')}>Accéder à mon espace →</button></>:<><div className="eyebrow">INSCRIPTION</div><h1>Lien indisponible</h1><p className="error">{error}</p><button className="btn secondary" onClick={()=>router.push('/catalog')}>Retour au catalogue</button></>}</div></Shell>}

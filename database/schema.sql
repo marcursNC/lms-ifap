@@ -1,0 +1,22 @@
+create extension if not exists pgcrypto;
+create type organization_kind as enum ('ifap','collectivite','organisme');
+create type member_role as enum ('platform_admin','org_admin','trainer','learner');
+create type course_status as enum ('draft','published','archived');
+create type deployment_status as enum ('available','closed','archived');
+create type session_mode as enum ('presentiel','visio','hybride');
+create table organizations(id uuid primary key default gen_random_uuid(),name text not null,kind organization_kind not null,created_at timestamptz default now());
+create table organization_members(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id) on delete cascade,user_id uuid not null,role member_role not null,unique(organization_id,user_id));
+create table courses(id uuid primary key default gen_random_uuid(),owner_organization_id uuid references organizations(id),title text not null,description text,visibility text not null default 'private' check(visibility in ('private','ifap_catalog')),status course_status not null default 'draft',created_at timestamptz default now(),updated_at timestamptz default now());
+create table course_modules(id uuid primary key default gen_random_uuid(),course_id uuid references courses(id) on delete cascade,title text not null,position int not null,content_type text not null,content_ref text,estimated_minutes int default 0);
+create table deployments(id uuid primary key default gen_random_uuid(),course_id uuid references courses(id) on delete cascade,target_organization_id uuid references organizations(id),status deployment_status not null default 'available',published_at timestamptz default now(),unique(course_id,target_organization_id));
+create table learners(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id),user_id uuid,first_name text not null,last_name text not null,email text,created_at timestamptz default now());
+create table enrollments(id uuid primary key default gen_random_uuid(),deployment_id uuid references deployments(id) on delete cascade,learner_id uuid references learners(id) on delete cascade,status text not null default 'enrolled',progress numeric(5,2) default 0,started_at timestamptz,completed_at timestamptz,unique(deployment_id,learner_id));
+create table sessions(id uuid primary key default gen_random_uuid(),deployment_id uuid references deployments(id) on delete cascade,title text not null,start_at timestamptz,end_at timestamptz,mode session_mode,location text,capacity int);
+create table evaluations(id uuid primary key default gen_random_uuid(),course_id uuid references courses(id) on delete cascade,title text not null,pass_score numeric(5,2));
+create table evaluation_attempts(id uuid primary key default gen_random_uuid(),evaluation_id uuid references evaluations(id) on delete cascade,learner_id uuid references learners(id) on delete cascade,score numeric(5,2),passed boolean,attempted_at timestamptz default now());
+create table attendance(id uuid primary key default gen_random_uuid(),session_id uuid references sessions(id) on delete cascade,learner_id uuid references learners(id) on delete cascade,present boolean default false,checked_at timestamptz,unique(session_id,learner_id));
+create table attestations(id uuid primary key default gen_random_uuid(),enrollment_id uuid references enrollments(id),issued_at timestamptz default now(),pdf_path text,verification_token uuid not null default gen_random_uuid() unique);
+create table audit_logs(id uuid primary key default gen_random_uuid(),organization_id uuid references organizations(id),actor_user_id uuid,action text not null,entity_type text,entity_id uuid,metadata jsonb,created_at timestamptz default now());
+create table event_outbox(id uuid primary key default gen_random_uuid(),event_type text not null,aggregate_type text not null,aggregate_id uuid,payload jsonb not null,created_at timestamptz default now(),published_at timestamptz,attempts int default 0);
+create index on courses(owner_organization_id); create index on deployments(target_organization_id); create index on enrollments(learner_id); create index on event_outbox(published_at);
+-- Production: enable RLS and add policies using SECURITY DEFINER membership helpers with fixed search_path.
