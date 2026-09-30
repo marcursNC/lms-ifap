@@ -1,0 +1,1 @@
+import './globals.css';export const metadata={title:'LMS IFAP',description:'Plateforme LMS multi-organisations IFAP'};export default function RootLayout({children}){return <html lang="fr"><body>{children}</body></html>}
