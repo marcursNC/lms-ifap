@@ -1,17 +1,22 @@
 import crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY,
-  { auth: { persistSession: false } }
-)
+function getAdminClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Configuration Supabase serveur manquante: NEXT_PUBLIC_SUPABASE_URL et SUPABASE_SERVICE_ROLE_KEY sont requis.')
+  }
+  return createClient(url, key, { auth: { persistSession: false } })
+}
 
 function validSignature(raw, signature) {
   const secret = process.env.VIRTUAL_CLASSROOM_WEBHOOK_SECRET
   if (!secret || !signature) return false
   const expected = crypto.createHmac('sha256', secret).update(raw).digest('hex')
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))
+  const a = Buffer.from(expected)
+  const b = Buffer.from(signature)
+  return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
 
 function normalizeEvent(body) {
@@ -39,7 +44,9 @@ export async function POST(req) {
     return Response.json({ error: 'invalid_signature' }, { status: 401 })
   }
 
+  let supabase
   try {
+    supabase = getAdminClient()
     const body = JSON.parse(raw)
     const event = normalizeEvent(body)
 
@@ -53,7 +60,6 @@ export async function POST(req) {
     })
     if (recordError) throw recordError
 
-    // Idempotency: a duplicate external event is acknowledged without changing attendance twice.
     if (!recorded) return Response.json({ ok: true, duplicate: true })
 
     const { data: session } = await supabase
