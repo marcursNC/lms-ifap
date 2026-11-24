@@ -12,15 +12,13 @@ export default function LearnerHome() {
   const [rows, setRows] = useState([])
   const [certs, setCerts] = useState([])
   const [catalog, setCatalog] = useState([])
+  const [sessions, setSessions] = useState([])
 
   useEffect(() => {
     ;(async () => {
       const s = createClient()
       const { data: { user } } = await s.auth.getUser()
-      if (!user) {
-        location.href = '/login'
-        return
-      }
+      if (!user) { location.href = '/login'; return }
 
       const { data: l, error: le } = await s.from('learners')
         .select('id,first_name,last_name,email,job_title,organization_id,organizations(name)')
@@ -46,10 +44,25 @@ export default function LearnerHome() {
         .select('id,certificate_number,issued_at,revoked_at,pdf_path,enrollments!inner(learner_id,deployments(courses(title)))')
         .eq('enrollments.learner_id', l.id).order('issued_at', { ascending: false })
 
+      const enrollmentIds = (e || []).map(x => x.id)
+      let upcoming = []
+      if (enrollmentIds.length) {
+        const { data: se, error: seErr } = await s.from('session_enrollments')
+          .select('session_id,enrollment_id,sessions(id,title,start_at,end_at,mode,location,tracking_mode,join_url,recording_url,status)')
+          .in('enrollment_id', enrollmentIds)
+        if (seErr) setError(seErr.message)
+        upcoming = (se || [])
+          .map(x => ({ ...x.sessions, enrollment_id: x.enrollment_id }))
+          .filter(x => x?.start_at && new Date(x.start_at) >= new Date())
+          .sort((a, b) => new Date(a.start_at) - new Date(b.start_at))
+          .slice(0, 4)
+      }
+
       if (ee || ce || ae) setError((ee || ce || ae).message)
       setRows(e || [])
       setCerts(a || [])
       setCatalog(cat || [])
+      setSessions(upcoming)
       setLoading(false)
     })()
   }, [])
@@ -122,6 +135,20 @@ export default function LearnerHome() {
           </div>
         </>
       )}
+
+      <section className="card learner-sessions">
+        <div className="section-head">
+          <div><span className="eyebrow">AGENDA</span><h2>Mes prochaines sessions</h2><p className="muted">Présentiel, visio et webinaires liés à vos formations.</p></div>
+          <Link className="text-link" href="/sessions">Voir les sessions →</Link>
+        </div>
+        {sessions.length ? <div className="upcoming-session-grid">{sessions.map(s => (
+          <div className="upcoming-session" key={s.id}>
+            <div className="session-date"><b>{new Date(s.start_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</b><span>{new Date(s.start_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span></div>
+            <div className="session-info"><h3>{s.title || 'Session de formation'}</h3><span>{s.mode || 'Session'}{s.location ? ' · ' + s.location : ''}</span><small>{s.tracking_mode === 'webinar' || s.tracking_mode === 'virtual_classroom' || s.tracking_mode === 'meeting' ? 'Suivi de présence automatique prévu' : 'Présence suivie'}</small></div>
+            {s.join_url && <a className="btn secondary session-join" href={s.join_url} target="_blank" rel="noreferrer">Rejoindre ↗</a>}
+          </div>
+        ))}</div> : <div className="empty">Aucune session à venir pour le moment.</div>}
+      </section>
 
       <div className="learner-course-grid">
         {rows.map(r => {
