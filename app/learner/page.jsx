@@ -13,6 +13,7 @@ export default function LearnerHome() {
   const [certs, setCerts] = useState([])
   const [catalog, setCatalog] = useState([])
   const [sessions, setSessions] = useState([])
+  const [attendance, setAttendance] = useState([])
 
   useEffect(() => {
     ;(async () => {
@@ -48,9 +49,11 @@ export default function LearnerHome() {
       let upcoming = []
       if (enrollmentIds.length) {
         const { data: se, error: seErr } = await s.from('session_enrollments')
-          .select('session_id,enrollment_id,sessions(id,title,start_at,end_at,mode,location,tracking_mode,join_url,recording_url,status)')
+          .select('session_id,enrollment_id,sessions(id,title,start_at,end_at,mode,location,tracking_mode,join_url,recording_url,status,required_attendance_percent)')
           .in('enrollment_id', enrollmentIds)
         if (seErr) setError(seErr.message)
+        const sessionIds = (se || []).map(x => x.session_id)
+        if (sessionIds.length) { const { data: at } = await s.from('attendance').select('session_id,present,attendance_percent,attended_seconds,source').in('session_id', sessionIds); setAttendance(at || []) }
         upcoming = (se || [])
           .map(x => ({ ...x.sessions, enrollment_id: x.enrollment_id }))
           .filter(x => x?.start_at && new Date(x.start_at) >= new Date())
@@ -73,6 +76,8 @@ export default function LearnerHome() {
     avg: rows.length ? Math.round(rows.reduce((a, r) => a + Number(r.progress || 0), 0) / rows.length) : 0,
     certs: certs.filter(c => !c.revoked_at).length
   }), [rows, certs])
+
+  const sessionStatus = (session) => { const a = attendance.find(x => x.session_id === session.id); if (new Date(session.start_at) >= new Date()) return {label:'À venir',kind:'upcoming'}; if (!a) return {label:'Présence en attente',kind:'pending'}; const ok = Number(a.attendance_percent ?? (a.present ? 100 : 0)) >= Number(session.required_attendance_percent ?? 80); return {label:ok?'Présence validée':'Présence insuffisante',kind:ok?'ok':'warning'} }
 
   const next = rows.find(r => r.status !== 'completed' && Number(r.progress) < 100)
 
@@ -145,7 +150,9 @@ export default function LearnerHome() {
           <div className="upcoming-session" key={s.id}>
             <div className="session-date"><b>{new Date(s.start_at).toLocaleDateString('fr-FR',{day:'2-digit',month:'short'})}</b><span>{new Date(s.start_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span></div>
             <div className="session-info"><h3>{s.title || 'Session de formation'}</h3><span>{s.mode || 'Session'}{s.location ? ' · ' + s.location : ''}</span><small>{s.tracking_mode === 'webinar' || s.tracking_mode === 'virtual_classroom' || s.tracking_mode === 'meeting' ? 'Suivi de présence automatique prévu' : 'Présence suivie'}</small></div>
-            {s.join_url && <a className="btn secondary session-join" href={s.join_url} target="_blank" rel="noreferrer">Rejoindre ↗</a>}
+            {s.join_url && <a className="btn secondary session-join" aria-label={`Rejoindre ${s.title || 'la session'}`} href={s.join_url} target="_blank" rel="noreferrer">Rejoindre ↗</a>}
+            {(() => { const st=sessionStatus(s); return <span className={`session-attendance ${st.kind}`}>{st.label}</span> })()}
+            {s.recording_url && new Date(s.end_at) < new Date() && <a className="text-link" href={s.recording_url} target="_blank" rel="noreferrer">Voir le replay →</a>}
           </div>
         ))}</div> : <div className="empty">Aucune session à venir pour le moment.</div>}
       </section>
