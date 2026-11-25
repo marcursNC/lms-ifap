@@ -37,15 +37,21 @@ export async function POST(req, { params }) {
   const { id } = await params
   let admin
   try {
+    const auth = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, { cookies: { getAll: () => req.cookies.getAll(), setAll: () => {} } })
+    const { data: { user } } = await auth.auth.getUser()
+    if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
     admin = getAdminClient()
+    const { data: membership } = await admin.from('organization_members').select('role,organization_id').eq('user_id',user.id).in('role',['platform_admin','org_admin','trainer']).maybeSingle()
+    if (!membership) return Response.json({ error: 'forbidden' }, { status: 403 })
 
     const { data: session, error } = await admin
       .from('sessions')
-      .select('id,start_at,end_at,external_provider,external_meeting_id,external_organizer_user_id,required_attendance_percent')
+      .select('id,start_at,end_at,external_provider,external_meeting_id,external_organizer_user_id,required_attendance_percent,deployments(target_organization_id)')
       .eq('id', id)
       .single()
 
     if (error || !session) return Response.json({ error: 'session_not_found' }, { status: 404 })
+    if (membership.role !== 'platform_admin' && membership.organization_id !== session.deployments?.target_organization_id) return Response.json({ error: 'forbidden' }, { status: 403 })
 
     if (
       session.external_provider !== 'microsoft_teams' ||
