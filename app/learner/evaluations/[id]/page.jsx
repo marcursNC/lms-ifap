@@ -29,20 +29,13 @@ export default function LearnerEvaluation(){
   async function submit(){
     if(questions.some(q=>!answers[q.id]||(Array.isArray(answers[q.id])&&!answers[q.id].length))){setError('Répondez à toutes les questions avant de valider.');return}
     setBusy(true);setError('')
-    const s=createClient();const {data:{user}}=await s.auth.getUser();const {data:l}=await s.from('learners').select('id').eq('user_id',user.id).single()
-    const {data:attempt,error:ae}=await s.from('evaluation_attempts').insert({evaluation_id:id,learner_id:l.id,score:0,max_score:questions.reduce((n,q)=>n+Number(q.points||1),0),passed:false,attempted_at:new Date().toISOString()}).select().single()
-    if(ae){setError(ae.message);setBusy(false);return}
-    let earned=0
-    for(const q of questions){
-      const selected=Array.isArray(answers[q.id])?answers[q.id]:[answers[q.id]]
-      const correct=(q.evaluation_options||[]).filter(o=>o.is_correct).map(o=>o.id)
-      const ok=selected.length===correct.length&&selected.every(x=>correct.includes(x))
-      if(ok)earned+=Number(q.points||1)
-      await s.from('evaluation_responses').insert({attempt_id:attempt.id,question_id:q.id,selected_option_ids:selected,is_correct:ok,points_awarded:ok?Number(q.points||1):0})
-    }
-    const max=questions.reduce((n,q)=>n+Number(q.points||1),0),score=max?Math.round(earned/max*100):0,passed=score>=Number(evaluation.pass_score||0)
-    const {error:ue}=await s.from('evaluation_attempts').update({score,max_score:max,passed,feedback:passed?'Évaluation réussie.':'Évaluation non réussie. Vous pouvez reprendre le parcours.'}).eq('id',attempt.id)
-    if(ue)setError(ue.message);else setResult({score,passed,attemptId:attempt.id})
+    const s=createClient()
+    const normalized=Object.fromEntries(Object.entries(answers).map(([questionId,value])=>[questionId,Array.isArray(value)?value:[value]]))
+    const {data,error:submitError}=await s.rpc('submit_evaluation',{p_evaluation_id:id,p_answers:normalized})
+    if(submitError){setError(submitError.message);setBusy(false);return}
+    const attempt=data?.[0]
+    if(!attempt){setError('La correction de l’évaluation n’a pas pu être finalisée.');setBusy(false);return}
+    setResult({score:Number(attempt.score||0),passed:Boolean(attempt.passed),attemptId:attempt.attempt_id})
     setBusy(false)
   }
 
