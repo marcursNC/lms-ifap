@@ -12,6 +12,8 @@
   "dependencies": {
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "fast-xml-parser": "^5.12.1",
+    "fflate": "^0.8.3",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
