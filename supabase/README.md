@@ -3,6 +3,7 @@
 ## `migrations/`
 - 32 fichiers : export exact de `supabase_migrations.schema_migrations` (production, 27/11/2026).
 - `20261125000000_rattrapage_hors_historique.sql` : objets créés directement en base, sans migration enregistrée. Reconstitué depuis la production. Comprend l'effet de `database/patches/v38_function_search_path.sql`.
+- `20261127000000_deploiement_organisations.sql` : déploiement vers une organisation. **Pas encore appliquée en production.** Retour arrière dans `rollback/`, tests par `tests/run.sh` sur une base jetable.
 
 ## Attention avant `supabase db push`
 La production ne connaît pas la version `20261125000000` et ses objets existent déjà. La déclarer appliquée au préalable, sans exécuter le SQL :
