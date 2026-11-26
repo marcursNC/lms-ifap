@@ -17,6 +17,7 @@ drop trigger enrollments_initial_state on public.enrollments;
 drop trigger enrollments_protect_history on public.enrollments;
 drop trigger session_enrollments_protect on public.session_enrollments;
 drop trigger sessions_protect on public.sessions;
+drop trigger session_enrollments_open_session on public.session_enrollments;
 drop policy learning_activity_log_insert_self on public.learning_activity_log;
 
 alter table public.enrollments drop constraint enrollments_status_check;
@@ -475,6 +476,7 @@ drop function app_private.enforce_enrollment_initial_state();
 drop function app_private.protect_enrollment_history();
 drop function app_private.protect_session_registration();
 drop function app_private.protect_session();
+drop function app_private.refuse_cancelled_session();
 drop function app_private.assert_session_owner(uuid);
 drop function app_private.is_course_owner_admin(uuid);
 

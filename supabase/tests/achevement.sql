@@ -177,6 +177,13 @@ select t.chk('D28 ressource + séance : séance','col_admin',t.seance(8,8),'ok',
 select t.chk('D29 ressource consultée sans être porté sur la séance','apprenant',t.act(8,'resource_completed',81,8),'ok',true);
 select t.etat('D30 non porté : validation exigée quand même',8,'awaiting_validation',100,0);
 
+select t.chk('D31 employeur n''annule pas une séance avec inscrits','col_admin',format('update public.sessions set status=''cancelled'' where id=%L',t.id('c',4)),'refus');
+select t.chk('D32 son formateur non plus','col_formateur',format('update public.sessions set status=''cancelled'' where id=%L',t.id('c',4)),'refus');
+select t.chk('D33 employeur modifie toujours le titre','col_admin',format('update public.sessions set title=''T'' where id=%L',t.id('c',4)),'ok');
+select t.chk('D34 le système peut encore annuler','systeme',format('update public.sessions set status=''cancelled'' where id=%L',t.id('c',4)),'ok');
+select t.chk('D35 séance vide : annulation permise','col_admin',format('update public.sessions set status=''cancelled'' where id=%L',t.id('c',8)),'ok',true);
+select t.chk('D36 aucune inscription sur une séance annulée','col_admin',t.porter(8,8),'refus');
+
 -- E. Interne : automatique
 select t.chk('E1 séance interne','ifap_admin',t.seance(5,5),'ok',true);
 select t.chk('E2 porté','ifap_admin',t.porter(5,5),'ok',true);

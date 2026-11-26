@@ -289,7 +289,7 @@ begin
   return new;
 end $$;
 
--- 7. Séances chez un tiers : seul le propriétaire retire un inscrit ou une séance ---------------
+-- 7. Séances chez un tiers : seul le propriétaire retire un inscrit ou retire/annule une séance --
 create function app_private.assert_session_owner(p_session uuid)
 returns void language plpgsql security definer set search_path = '' as $$
 declare v_course uuid;
@@ -301,7 +301,7 @@ begin
   join public.courses c on c.id = dep.course_id
   where s.id = p_session and dep.target_organization_id <> c.owner_organization_id;
   if v_course is not null and not app_private.is_course_owner_admin(v_course) then
-    raise exception 'Seul l''organisme propriétaire de la formation peut retirer un inscrit ou une séance';
+    raise exception 'Seul l''organisme propriétaire de la formation peut retirer un inscrit, ou retirer ou annuler une séance';
   end if;
 end $$;
 
@@ -318,7 +318,8 @@ create trigger session_enrollments_protect before delete or update on public.ses
 create function app_private.protect_session()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
-  if (tg_op = 'DELETE' or new.deployment_id is distinct from old.deployment_id)
+  if (tg_op = 'DELETE' or new.deployment_id is distinct from old.deployment_id
+      or (new.status = 'cancelled' and old.status is distinct from 'cancelled'))
      and (exists (select 1 from public.session_enrollments se where se.session_id = old.id)
           or exists (select 1 from public.attendance a where a.session_id = old.id)) then
     perform app_private.assert_session_owner(old.id);
@@ -326,8 +327,19 @@ begin
   if tg_op = 'DELETE' then return old; end if;
   return new;
 end $$;
-create trigger sessions_protect before delete or update of deployment_id on public.sessions
+create trigger sessions_protect before delete or update of deployment_id, status on public.sessions
   for each row execute function app_private.protect_session();
+
+create function app_private.refuse_cancelled_session()
+returns trigger language plpgsql security definer set search_path = '' as $$
+begin
+  if exists (select 1 from public.sessions s where s.id = new.session_id and s.status = 'cancelled') then
+    raise exception 'Cette séance est annulée';
+  end if;
+  return new;
+end $$;
+create trigger session_enrollments_open_session before insert on public.session_enrollments
+  for each row execute function app_private.refuse_cancelled_session();
 
 -- 8. Écritures directes retirées ----------------------------------------------------------------
 revoke update, delete, truncate on public.enrollments from anon, authenticated;
@@ -477,7 +489,7 @@ revoke all on function
   app_private.completion_from_attendance(), app_private.completion_from_registration(),
   app_private.issue_attestation(uuid), app_private.enforce_enrollment_initial_state(),
   app_private.protect_enrollment_history(), app_private.assert_session_owner(uuid),
-  app_private.protect_session_registration(), app_private.protect_session()
+  app_private.protect_session_registration(), app_private.protect_session(), app_private.refuse_cancelled_session()
 from public, anon, authenticated;
 
 revoke all on function
