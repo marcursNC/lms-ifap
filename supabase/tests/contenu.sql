@@ -185,6 +185,8 @@ select t.etat('C30b terminé et attesté',61,'completed',100,1);
 select t.chk('C31a suivi 701','apprenant',t.act(71,701),'ok',true);
 select t.chk('C31 même chose chez un tiers avec séance','ifap_admin',t.retrait('resource','b',702,'deleted'),'ok',true);
 select t.etat('C32 à valider',71,'awaiting_validation',100,0);
+select t.chk('C34 ajout obligatoire sur un parcours à valider','ifap_admin',t.ajout(705,7,71),'ok',true);
+select t.etat('C34b il repasse en cours',71,'in_progress',66.67,0);
 select t.chk('C33a ouverture 801','apprenant',t.act(81,801,'resource_opened'),'ok',true);
 select t.chk('C33 retrait du seul obligatoire','ifap_admin',t.retrait('resource','b',801,'retired'),'ok',true);
 select t.etat('C33b rien ne se termine',81,'in_progress',0,0);

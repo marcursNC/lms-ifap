@@ -34,7 +34,7 @@ export function ResourcePanel({ resource, busy, onSave, onRemove }) {
         <button type="submit" className="btn" disabled={busy}>Enregistrer</button>
       </form>
       <Preview resource={resource} />
-      <Remove busy={busy} onRemove={onRemove} />
+      <Remove busy={busy} onRemove={onRemove} note="Un élément déjà suivi par un stagiaire est retiré sans effacer les traces. Sinon il est supprimé." />
     </div>
   )
 }
@@ -52,7 +52,7 @@ export function ModulePanel({ module, busy, onSave, onRemove }) {
         <Required value={required} onChange={setRequired} />
         <button type="submit" className="btn" disabled={busy}>Enregistrer</button>
       </form>
-      <Remove busy={busy} onRemove={onRemove} />
+      <Remove busy={busy} onRemove={onRemove} note="Retirer un module retire aussi tous ses contenus. S’il a déjà été suivi, les traces sont conservées. Sinon le module et ses fichiers sont supprimés." />
     </div>
   )
 }
@@ -86,11 +86,11 @@ function Preview({ resource }) {
   )
 }
 
-function Remove({ busy, onRemove }) {
+function Remove({ busy, onRemove, note }) {
   const [confirm, setConfirm] = useState(false)
   return (
     <div className="editor-remove">
-      <p className="muted small">Un élément déjà suivi par un stagiaire est retiré sans effacer les traces. Sinon il est supprimé.</p>
+      <p className="muted small">{note}</p>
       {confirm
         ? <div className="actions">
             <button type="button" className="btn" disabled={busy} onClick={onRemove}>Confirmer le retrait</button>
