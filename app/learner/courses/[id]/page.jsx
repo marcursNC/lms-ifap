@@ -3,13 +3,14 @@ import Link from 'next/link'
 import {useEffect,useState} from 'react'
 import {useParams} from 'next/navigation'
 import Shell from '../../../../components/Shell'
+import ScormPlayer from '../../../../components/ScormPlayer'
 import {createClient} from '../../../../lib/supabase-browser'
 import {ENROLLMENT_LABELS} from '../../../../lib/enrollment-rules.mjs'
 import {orderedTree} from '../../../../lib/content-rules.mjs'
 
 export default function LearnerCourse(){
   const {id}=useParams()
-  const [row,setRow]=useState(null),[modules,setModules]=useState([]),[resources,setResources]=useState([]),[completedResources,setCompletedResources]=useState(new Set()),[completedModules,setCompletedModules]=useState(new Set()),[loading,setLoading]=useState(true),[error,setError]=useState(''),[opened,setOpened]=useState(null),[busy,setBusy]=useState('')
+  const [row,setRow]=useState(null),[modules,setModules]=useState([]),[resources,setResources]=useState([]),[completedResources,setCompletedResources]=useState(new Set()),[completedModules,setCompletedModules]=useState(new Set()),[loading,setLoading]=useState(true),[error,setError]=useState(''),[opened,setOpened]=useState(null),[busy,setBusy]=useState(''),[playing,setPlaying]=useState(null)
 
   useEffect(()=>{(async()=>{
     const s=createClient(); const {data:{user}}=await s.auth.getUser()
@@ -31,7 +32,18 @@ export default function LearnerCourse(){
     setLoading(false)
   })()},[id])
 
+  // Résultat enregistré par un module : la base a déjà tracé et calculé, on relit.
+  function scormResult(resource,result){
+    if(result?.completed) setCompletedResources(prev=>new Set([...prev,resource.id]))
+    refreshProgress()
+  }
+
   async function openResource(resource){
+    // Un module SCORM s'ouvre dans la page ; ses traces sont écrites par la base.
+    if(resource.resource_type==='scorm'){
+      if(!['cancelled','pending'].includes(row?.status)){setError('');setPlaying(resource)}
+      return
+    }
     // L'onglet s'ouvre avant tout appel asynchrone, sinon le navigateur le bloque.
     const tab=window.open('','_blank')
     if(tab) tab.opener=null
@@ -87,7 +99,9 @@ export default function LearnerCourse(){
           {orderedTree(modules,resources).length?orderedTree(modules,resources).map((m,i)=>{const rs=m.resources;const required=rs.filter(r=>r.is_required);const ready=required.every(r=>completedResources.has(r.id));const done=completedModules.has(m.id);const isOpen=opened===(m.id||'hors-module');return <article className="module-row" key={m.id||'hors-module'}>
             <button type="button" className="module-toggle" aria-expanded={isOpen} onClick={()=>setOpened(isOpen?null:m.id||'hors-module')}><span className="module-number" aria-hidden="true">{i+1}</span><span><b>{m.title}</b><span className="muted small">{m.description||(m.id?'Module de formation':'Documents complémentaires')}</span>{m.is_required&&<span className="badge">Obligatoire</span>}</span><span aria-hidden="true">{done?'✓':isOpen?'−':'+'}</span></button>
             {isOpen&&<div className="module-resources" aria-label={`Ressources du module ${m.title}`}>
-              {rs.length?rs.map(resource=><div className="resource-row" key={resource.id}><button type="button" onClick={()=>openResource(resource)}><span className="resource-icon" aria-hidden="true">↗</span><span><b>{resource.title}</b><span className="muted small">{resourceTypeLabel(resource.resource_type)}{resource.is_required?' · Obligatoire':' · Facultatif'}</span></span></button><button type="button" className="resource-complete" disabled={['cancelled','pending'].includes(row?.status)||completedResources.has(resource.id)||busy===resource.id} onClick={()=>completeResource(resource)}>{completedResources.has(resource.id)?'✓ Terminé':busy===resource.id?'…':'Terminer'}</button></div>):<p className="empty">Aucune ressource disponible pour le moment.</p>}
+              {rs.length?rs.map(resource=><div className="resource-row" key={resource.id}><button type="button" onClick={()=>openResource(resource)}><span className="resource-icon" aria-hidden="true">↗</span><span><b>{resource.title}</b><span className="muted small">{resourceTypeLabel(resource.resource_type)}{resource.is_required?' · Obligatoire':' · Facultatif'}</span></span></button>{resource.resource_type==='scorm'
+                ?<button type="button" className="resource-complete" disabled={['cancelled','pending'].includes(row?.status)} onClick={()=>openResource(resource)}>{completedResources.has(resource.id)?'✓ Terminé · Revoir':'Lancer'}</button>
+                :<button type="button" className="resource-complete" disabled={['cancelled','pending'].includes(row?.status)||completedResources.has(resource.id)||busy===resource.id} onClick={()=>completeResource(resource)}>{completedResources.has(resource.id)?'✓ Terminé':busy===resource.id?'…':'Terminer'}</button>}</div>):<p className="empty">Aucune ressource disponible pour le moment.</p>}
               {m.id&&!done&&<button type="button" className="btn module-complete" disabled={['cancelled','pending'].includes(row?.status)||!ready||busy===m.id} onClick={()=>completeModule(m)}>{busy===m.id?'Validation…':ready?'Valider le module':'Terminez les ressources obligatoires'}</button>}
               {done&&<p className="success" role="status">Module terminé ✓</p>}
             </div>}
@@ -96,5 +110,6 @@ export default function LearnerCourse(){
         <section className="card" aria-labelledby="progress-title"><span className="eyebrow">VOTRE PROGRESSION</span><h2 id="progress-title">{Math.round(Number(row?.progress||0))}%</h2><p className="muted">Votre progression se met à jour au fil de vos activités et de vos sessions.</p><div className="big-progress" role="progressbar" aria-valuenow={Math.round(Number(row?.progress||0))} aria-valuemin="0" aria-valuemax="100" aria-label="Progression de votre formation"><span aria-hidden="true" style={{width:`${Math.min(100,Number(row?.progress||0))}%`}}/></div><Link className="btn" href="/learner">Retour à mon espace</Link></section>
       </div>
     </>}
+    {playing&&<ScormPlayer resource={playing} enrollment={row} onResult={result=>scormResult(playing,result)} onClose={()=>{setPlaying(null);refreshProgress()}}/>}
   </Shell>
 }
