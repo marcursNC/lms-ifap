@@ -45,7 +45,7 @@ export default function CatalogDetail() {
 
       const { data: mods } = await s.from('course_modules')
         .select('id,title,description,position,content_type,estimated_minutes')
-        .eq('course_id', id).order('position')
+        .eq('course_id', id).is('retired_at', null).order('position')
       setModules(mods || [])
 
       if (l) {

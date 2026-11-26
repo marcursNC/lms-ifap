@@ -5,6 +5,7 @@ import {useParams} from 'next/navigation'
 import Shell from '../../../../components/Shell'
 import {createClient} from '../../../../lib/supabase-browser'
 import {ENROLLMENT_LABELS} from '../../../../lib/enrollment-rules.mjs'
+import {orderedTree} from '../../../../lib/content-rules.mjs'
 
 export default function LearnerCourse(){
   const {id}=useParams()
@@ -18,10 +19,10 @@ export default function LearnerCourse(){
     const {data:e,error:ee}=await s.from('enrollments').select('id,status,progress,started_at,completed_at,deployment_id,deployments(id,course_id,courses(id,title,description,duration_minutes,modality,objectives))').eq('deployment_id',id).eq('learner_id',l.id).maybeSingle()
     if(ee||!e){setError(ee?.message||'Cette formation ne vous est pas accessible.');setLoading(false);return}
     setRow(e)
-    const {data:m,error:me}=await s.from('course_modules').select('id,title,description,position,is_required').eq('course_id',e.deployments.course_id).order('position')
+    const {data:m,error:me}=await s.from('course_modules').select('id,title,description,position,is_required').eq('course_id',e.deployments.course_id).is('retired_at',null).order('position')
     if(me){setError(me.message);setLoading(false);return}
     setModules(m||[])
-    const {data:rs,error:re}=await s.from('course_resources').select('id,module_id,title,resource_type,storage_path,external_url,metadata,is_required').eq('course_id',e.deployments.course_id).order('created_at')
+    const {data:rs,error:re}=await s.from('course_resources').select('id,module_id,title,resource_type,storage_path,external_url,metadata,is_required,position').eq('course_id',e.deployments.course_id).is('retired_at',null).order('position')
     if(re){setError(re.message);setLoading(false);return}
     setResources(rs||[])
     const {data:acts}=await s.from('learning_activity_log').select('resource_id,module_id,activity_type').eq('enrollment_id',e.id).in('activity_type',['resource_completed','module_completed'])
@@ -31,10 +32,16 @@ export default function LearnerCourse(){
   })()},[id])
 
   async function openResource(resource){
+    // L'onglet s'ouvre avant tout appel asynchrone, sinon le navigateur le bloque.
+    const tab=window.open('','_blank')
+    if(tab) tab.opener=null
+    setError('')
     const s=createClient()
     await s.from('learning_activity_log').insert({enrollment_id:row.id,resource_id:resource.id,module_id:resource.module_id,activity_type:'resource_opened',started_at:new Date().toISOString(),progress:0,metadata:{resource_type:resource.resource_type||'unknown'}})
-    if(resource.external_url) window.open(resource.external_url,'_blank','noopener,noreferrer')
-    else if(resource.storage_path){const {data}=await s.storage.from('course-resources').createSignedUrl(resource.storage_path,3600);if(data?.signedUrl) window.open(data.signedUrl,'_blank','noopener,noreferrer')}
+    let url=resource.external_url?.startsWith('https://')?resource.external_url:null
+    if(resource.storage_path){const {data}=await s.storage.from('course-resources').createSignedUrl(resource.storage_path,3600);url=data?.signedUrl||null}
+    if(tab&&url) tab.location.replace(url)
+    else{tab?.close();setError(url?'Autorisez l’ouverture d’un nouvel onglet pour ce site.':'Impossible d’ouvrir ce document.')}
   }
 
   // La progression est calculée par la base : on la relit.
@@ -77,11 +84,11 @@ export default function LearnerCourse(){
       {row?.status==='cancelled'&&<div className="error" role="status">Cette inscription est annulée : votre activité n’est plus enregistrée.</div>}
       <div className="grid2 learner-detail-grid">
         <section className="card" aria-labelledby="programme-title"><span className="eyebrow">PARCOURS</span><h2 id="programme-title">Votre programme</h2>
-          {modules.length?modules.map((m,i)=>{const rs=resources.filter(r=>r.module_id===m.id);const required=rs.filter(r=>r.is_required);const ready=required.every(r=>completedResources.has(r.id));const done=completedModules.has(m.id);const isOpen=opened===m.id;return <article className="module-row" key={m.id}>
-            <button type="button" className="module-toggle" aria-expanded={isOpen} onClick={()=>setOpened(isOpen?null:m.id)}><span className="module-number" aria-hidden="true">{i+1}</span><span><b>{m.title}</b><span className="muted small">{m.description||'Module de formation'}</span>{m.is_required&&<span className="badge">Obligatoire</span>}</span><span aria-hidden="true">{done?'✓':isOpen?'−':'+'}</span></button>
+          {orderedTree(modules,resources).length?orderedTree(modules,resources).map((m,i)=>{const rs=m.resources;const required=rs.filter(r=>r.is_required);const ready=required.every(r=>completedResources.has(r.id));const done=completedModules.has(m.id);const isOpen=opened===(m.id||'hors-module');return <article className="module-row" key={m.id||'hors-module'}>
+            <button type="button" className="module-toggle" aria-expanded={isOpen} onClick={()=>setOpened(isOpen?null:m.id||'hors-module')}><span className="module-number" aria-hidden="true">{i+1}</span><span><b>{m.title}</b><span className="muted small">{m.description||(m.id?'Module de formation':'Documents complémentaires')}</span>{m.is_required&&<span className="badge">Obligatoire</span>}</span><span aria-hidden="true">{done?'✓':isOpen?'−':'+'}</span></button>
             {isOpen&&<div className="module-resources" aria-label={`Ressources du module ${m.title}`}>
               {rs.length?rs.map(resource=><div className="resource-row" key={resource.id}><button type="button" onClick={()=>openResource(resource)}><span className="resource-icon" aria-hidden="true">↗</span><span><b>{resource.title}</b><span className="muted small">{resourceTypeLabel(resource.resource_type)}{resource.is_required?' · Obligatoire':' · Facultatif'}</span></span></button><button type="button" className="resource-complete" disabled={['cancelled','pending'].includes(row?.status)||completedResources.has(resource.id)||busy===resource.id} onClick={()=>completeResource(resource)}>{completedResources.has(resource.id)?'✓ Terminé':busy===resource.id?'…':'Terminer'}</button></div>):<p className="empty">Aucune ressource disponible pour le moment.</p>}
-              {!done&&<button type="button" className="btn module-complete" disabled={['cancelled','pending'].includes(row?.status)||!ready||busy===m.id} onClick={()=>completeModule(m)}>{busy===m.id?'Validation…':ready?'Valider le module':'Terminez les ressources obligatoires'}</button>}
+              {m.id&&!done&&<button type="button" className="btn module-complete" disabled={['cancelled','pending'].includes(row?.status)||!ready||busy===m.id} onClick={()=>completeModule(m)}>{busy===m.id?'Validation…':ready?'Valider le module':'Terminez les ressources obligatoires'}</button>}
               {done&&<p className="success" role="status">Module terminé ✓</p>}
             </div>}
           </article>}):<div className="empty">Les contenus seront bientôt disponibles.</div>}
