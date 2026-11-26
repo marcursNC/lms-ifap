@@ -27,3 +27,36 @@ button:disabled{cursor:not-allowed}
 @media (forced-colors: active){
   :focus-visible{outline:2px solid CanvasText}
 }
+
+/* Éditeur de formation — couleurs IFAP regroupées, à remplacer à réception de la charte */
+:root{--ifap-900:#123b5d;--ifap-700:#176aa1;--ifap-600:#1269a7;--ifap-100:#e7f0f7}
+.editor{display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:18px;align-items:start}
+.editor-side{background:var(--ifap-900);color:#fff;border-radius:13px;padding:16px;display:grid;gap:12px;min-width:0}
+.editor-side .empty{color:#dbe8f3}
+.editor-side .editor-form input{background:#fff;color:#172033}
+.editor-new-module{background:#fff;color:var(--ifap-900)}
+.editor-tree,.editor-tree ol{list-style:none;margin:0;padding:0}
+.editor-tree{display:grid;gap:10px}
+.editor-module{background:rgba(255,255,255,.07);border-radius:10px;padding:8px}
+.editor-tree ol{margin:4px 0 4px 12px}
+.editor-row{display:flex;align-items:center;gap:6px;border-radius:8px;padding:2px 4px;cursor:grab}
+.editor-row.selected{background:var(--ifap-700)}
+.editor-item{flex:1;min-width:0;text-align:left;background:none;border:0;color:#fff;padding:8px 4px;cursor:pointer;overflow-wrap:anywhere;font:inherit}
+.editor-type{display:inline-block;font-size:10px;font-weight:800;background:var(--ifap-100);color:var(--ifap-900);border-radius:5px;padding:2px 6px;margin-right:8px}
+.editor-arrows{display:flex;gap:4px}
+.editor-arrows button{width:28px;height:28px;border-radius:6px;border:1px solid #4a6d86;background:transparent;color:#fff;cursor:pointer}
+.editor-arrows button:disabled{opacity:.35}
+.editor-add{width:100%;background:transparent;color:#dbe8f3;border:1px dashed #6b8ca5;border-radius:8px;padding:8px;cursor:pointer}
+.editor-panel{min-width:0}
+.editor-form{display:grid;gap:12px}
+.editor-form h2{margin:0;overflow-wrap:anywhere}
+.editor-form label{display:grid;gap:5px;font-weight:700;font-size:13px}
+.editor-form input,.editor-form select,.editor-form textarea{width:100%;font:inherit;font-weight:400;padding:10px;border:1px solid #c9d4de;border-radius:8px}
+.editor-form .editor-check{display:flex;gap:9px;align-items:center;font-weight:400}
+.editor-form .editor-check input{width:auto}
+.editor-form>.btn{justify-self:start}
+.editor-preview{display:grid;gap:8px;border-top:1px solid #e8edf2;padding-top:12px;overflow-wrap:anywhere}
+.editor-preview h3{margin:0}
+.editor-preview iframe{width:100%;height:420px;border:1px solid #e1e7ed;border-radius:8px}
+.editor-remove{border-top:1px solid #e8edf2;padding-top:12px}
+@media(max-width:800px){.editor{grid-template-columns:1fr}}

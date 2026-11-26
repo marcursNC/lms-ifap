@@ -10,6 +10,7 @@ import {
   frenchError, NOT_ALLOWED, STATUS_LABELS, MODE_LABELS
 } from '../../../lib/deployment-rules.mjs'
 import { isCourseOwnerAdmin } from '../../../lib/enrollment-rules.mjs'
+import { publishError } from '../../../lib/content-rules.mjs'
 
 // Actions proposées selon le statut : [statut visé, bouton, confirmation]
 const ACTIONS = {
@@ -22,6 +23,7 @@ export default function Course() {
   const { id } = useParams()
   const [course, setCourse] = useState(null)
   const [modules, setModules] = useState([])
+  const [resources, setResources] = useState([])
   const [deployments, setDeployments] = useState([])
   const [memberships, setMemberships] = useState([])
   const [clients, setClients] = useState([])
@@ -38,17 +40,19 @@ export default function Course() {
     const s = createClient()
     const { data: { user } } = await s.auth.getUser()
     if (!user) { location.href = '/login'; return }
-    const [c, m, d, me, cl] = await Promise.all([
+    const [c, m, d, me, cl, rs] = await Promise.all([
       s.from('courses').select('id,title,description,objectives,target_audience,duration_minutes,modality,prerequisites,visibility,status,owner_organization_id,organizations(name,kind)').eq('id', id).maybeSingle(),
-      s.from('course_modules').select('id,title,description,position,is_required').eq('course_id', id).order('position'),
+      s.from('course_modules').select('id,title,description,position,is_required').eq('course_id', id).is('retired_at', null).order('position'),
       s.from('deployments').select('id,status,enrollment_mode,published_at,available_from,available_until,capacity,target_organization_id,initiated_by_organization_id,organizations:target_organization_id(name)').eq('course_id', id).order('published_at'),
       s.from('organization_members').select('organization_id,role,organizations(name,kind)').eq('user_id', user.id),
-      s.rpc('list_deployable_organizations')
+      s.rpc('list_deployable_organizations'),
+      s.from('course_resources').select('id,retired_at').eq('course_id', id)
     ])
-    const failed = [c, m, d, me, cl].find(r => r.error)
+    const failed = [c, m, d, me, cl, rs].find(r => r.error)
     if (failed) setError(frenchError(failed.error))
     setCourse(c.data)
     setModules(m.data || [])
+    setResources(rs.data || [])
     setDeployments(d.data || [])
     setMemberships(me.data || [])
     setClients(cl.data || [])
@@ -78,8 +82,13 @@ export default function Course() {
     return !failure && Boolean(data?.length)
   }
 
-  const publish = () => run(s => s.from('courses').update({ status: 'published' }).eq('id', id).select('id'), 'Formation publiée.')
-  const publishCatalog = () => run(s => s.from('courses').update({ status: 'published', visibility: 'ifap_catalog' }).eq('id', id).select('id'), 'Formation publiée au catalogue IFAP.')
+  function guardedPublish(values, success) {
+    const invalid = publishError(course, resources)
+    if (invalid) { setMessage(''); setError(invalid); return }
+    return run(s => s.from('courses').update(values).eq('id', id).select('id'), success)
+  }
+  const publish = () => guardedPublish({ status: 'published' }, 'Formation publiée.')
+  const publishCatalog = () => guardedPublish({ status: 'published', visibility: 'ifap_catalog' }, 'Formation publiée au catalogue IFAP.')
 
   async function deploy(e) {
     e.preventDefault()
@@ -104,6 +113,7 @@ export default function Course() {
         <div className="actions">
           <Link className="btn secondary" href="/courses">Retour</Link>
           {isCourseOwnerAdmin(course, memberships) && <Link className="btn secondary" href={`/courses/${id}/suivi`}>Suivi et validation</Link>}
+          {editable && <Link className="btn secondary" href={`/courses/${id}/contenu`}>Modifier le contenu</Link>}
           {editable && course.status === 'draft' && <button className="btn" onClick={publish} disabled={busy}>Publier</button>}
           {editable && course.visibility !== 'ifap_catalog' && course.organizations?.kind === 'ifap' && <button className="btn" onClick={publishCatalog} disabled={busy}>Publier au catalogue IFAP</button>}
           {freeTargets.length > 0 && <button className="btn" onClick={() => setShowDeploy(v => !v)}>+ Déployer</button>}
