@@ -1,4 +1,4 @@
--- Retour à l'état antérieur à 20261127000000_deploiement_organisations.
+-- Retour à l'état antérieur à 20261126184023_deploiement_organisations.
 -- Attention : rétablit les blocages d'origine et supprime l'origine des déploiements.
 -- Les déploiements, inscriptions et événements sont conservés.
 begin;

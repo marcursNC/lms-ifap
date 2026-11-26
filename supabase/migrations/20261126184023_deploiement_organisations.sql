@@ -1,6 +1,5 @@
 -- Déploiement d'une formation vers une organisation.
--- Conception : docs/superpowers/specs/2026-11-27-deploiement-design.md
--- Retour arrière : supabase/rollback/20261127000000_deploiement_organisations.sql
+-- Retour arrière : supabase/rollback/20261126184023_deploiement_organisations.sql
 
 -- 1. Organisation à l'origine du déploiement -------------------------------------------------
 do $$ begin
