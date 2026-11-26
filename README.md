@@ -38,3 +38,13 @@ Variables serveur : `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`. L'applic
 Dans une session LMS, renseigner `external_provider=microsoft_teams`, `external_meeting_id` et `external_organizer_user_id`, puis utiliser « Synchroniser Teams ». Le LMS rapproche les participants par adresse e-mail, calcule la durée cumulée et le pourcentage de présence.
 
 Sources Microsoft Graph : https://learn.microsoft.com/en-us/graph/api/meetingattendancereport-list?view=graph-rest-1.0 et https://learn.microsoft.com/en-us/graph/api/attendancerecord-list?view=graph-rest-1.0
+
+## Lecteur SCORM (dossier `player/`)
+
+Second service Cloudflare, distinct du LMS : il sert les fichiers des modules SCORM sur sa propre adresse, sans session d'utilisateur.
+
+- Déploiement : service `lms-ifap-lecteur`, dossier racine `player`, commande `npx wrangler deploy`.
+- Secret à saisir dans Cloudflare par l'administrateur : `SUPABASE_SECRET_KEY` (clé `sb_secret_…`). Ne jamais l'écrire dans Git ni dans une variable `NEXT_PUBLIC_`.
+- Adresses autorisées : `SUPABASE_URL` et `LMS_ORIGIN` dans `player/wrangler.jsonc`.
+- Le LMS lit `NEXT_PUBLIC_PLAYER_URL` à la construction ; sans valeur, il utilise l'adresse `workers.dev` du lecteur.
+- L'import est réservé aux formations de l'IFAP tant que le LMS n'a pas son propre nom de domaine.

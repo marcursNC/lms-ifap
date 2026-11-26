@@ -55,8 +55,18 @@ button:disabled{cursor:not-allowed}
 .editor-form .editor-check{display:flex;gap:9px;align-items:center;font-weight:400}
 .editor-form .editor-check input{width:auto}
 .editor-form>.btn{justify-self:start}
+.editor-form progress{width:100%;accent-color:var(--ifap-700)}
+.editor-preview .editor-open{justify-self:start}
+.editor-pending{margin-bottom:18px;display:grid;gap:8px}
+.editor-pending h2,.editor-pending p{margin:0}
+.scorm-overlay{position:fixed;inset:0;z-index:50;background:#0b1520;display:grid;grid-template-rows:auto auto minmax(0,1fr);grid-template-columns:minmax(0,1fr)}
+.scorm-bar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--ifap-900);color:#fff}
+.scorm-bar b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scorm-bar .btn{background:#fff;color:var(--ifap-900);flex:none}
+.scorm-notice>div{margin:0;border-radius:0}
+.scorm-overlay iframe{grid-row:3;min-width:0;width:100%;height:100%;border:0;background:#fff}
 .editor-preview{display:grid;gap:8px;border-top:1px solid #e8edf2;padding-top:12px;overflow-wrap:anywhere}
 .editor-preview h3{margin:0}
-.editor-preview iframe{width:100%;height:420px;border:1px solid #e1e7ed;border-radius:8px}
+.editor-preview>iframe{width:100%;height:420px;border:1px solid #e1e7ed;border-radius:8px}
 .editor-remove{border-top:1px solid #e8edf2;padding-top:12px}
 @media(max-width:800px){.editor{grid-template-columns:1fr}}

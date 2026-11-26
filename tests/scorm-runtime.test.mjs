@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { createApi, parseSessionTime } from '../player/src/scorm-runtime.mjs'
+import { createApi, parseSessionTime } from '../player/public/scorm-runtime.mjs'
 
 const state = { student_id: 'e1', student_name: 'Test, Agent', lesson_status: 'incomplete', score_raw: 40, lesson_location: '3', suspend_data: '{"a":1}', total_time_seconds: 3723, mastery_score: null, entry: 'resume' }
 const make = (s = state) => { const sent = []; const api = createApi(s, { onCommit: (data, info) => sent.push({ data, ...info }) }); return { api, sent } }

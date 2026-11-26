@@ -88,3 +88,19 @@ test('mise à jour sans ligne → refus ; ordre transmis', async () => {
   assert.equal((await saveOrder(s, 'c', ['m'], ['r'])).error, null)
   assert.deepEqual(s.calls[0], ['rpc', 'reorder_course_content', { p_course: 'c', p_modules: ['m'], p_resources: ['r'] }])
 })
+
+test('retrait d’un module SCORM supprimé : ses fichiers partent aussi', async () => {
+  for (const [kind, item] of [['resource', { id: 'r', course_id: 'c', resource_type: 'scorm' }],
+    ['module', { id: 'm', course_id: 'c', resources: [{ id: 'r', resource_type: 'scorm' }] }]]) {
+    const s = fake({ rpc: { data: 'deleted' } })
+    const cleaned = []
+    await removeItem(s, kind, item, async (_, courseId) => cleaned.push(courseId))
+    assert.deepEqual(cleaned, ['c'])
+    assert.ok(!s.calls.some(c => c[0] === 'remove'))
+  }
+  for (const [data, type] of [['retired', 'scorm'], ['deleted', 'pdf']]) {
+    const cleaned = []
+    await removeItem(fake({ rpc: { data } }), 'resource', { id: 'r', course_id: 'c', resource_type: type }, async () => cleaned.push(1))
+    assert.equal(cleaned.length, 0)
+  }
+})

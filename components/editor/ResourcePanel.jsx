@@ -1,8 +1,10 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient } from '../../lib/supabase-browser'
+import ScormImport from './ScormImport'
+import ScormPlayer from '../ScormPlayer'
 
-export function NewResource({ busy, onAdd }) {
+export function NewResource({ busy, scorm, progress, onAdd }) {
   const [type, setType] = useState('pdf')
   const [title, setTitle] = useState('')
   const [url, setUrl] = useState('')
@@ -11,12 +13,14 @@ export function NewResource({ busy, onAdd }) {
   return (
     <form className="editor-form" noValidate onSubmit={e => { e.preventDefault(); onAdd({ type, title, url, file, required }) }}>
       <h2>Nouveau contenu</h2>
-      <label>Type<select value={type} onChange={e => setType(e.target.value)}><option value="pdf">Document PDF</option><option value="link">Lien web</option></select></label>
+      <label>Type<select value={type} onChange={e => { setType(e.target.value); setFile(null) }}><option value="pdf">Document PDF</option><option value="link">Lien web</option>{scorm && <option value="scorm">Module SCORM</option>}</select></label>
       <label>Titre du contenu<input value={title} onChange={e => setTitle(e.target.value)} /></label>
       {type === 'link'
         ? <label>Adresse<input type="url" value={url} placeholder="https://…" onChange={e => setUrl(e.target.value)} /></label>
-        : <label>Fichier PDF<input type="file" accept="application/pdf,.pdf" onChange={e => setFile(e.target.files?.[0] || null)} /></label>}
-      <Required value={required} onChange={setRequired} />
+        : type === 'scorm'
+        ? <ScormImport onFile={setFile} progress={progress} />
+        : <label>Fichier PDF<input key="pdf" type="file" accept="application/pdf,.pdf" onChange={e => setFile(e.target.files?.[0] || null)} /></label>}
+      {type !== 'scorm' && <Required value={required} onChange={setRequired} />}
       <button type="submit" className="btn" disabled={busy}>{busy ? 'Envoi…' : 'Ajouter'}</button>
     </form>
   )
@@ -63,6 +67,23 @@ function Required({ value, onChange }) {
 
 // Aperçu du gestionnaire : aucune activité n'est enregistrée.
 function Preview({ resource }) {
+  if (resource.resource_type === 'scorm') return <ScormPreview resource={resource} />
+  return <FilePreview resource={resource} />
+}
+
+function ScormPreview({ resource }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="editor-preview">
+      <h3>Aperçu</h3>
+      <p className="muted small">Dans l’aperçu, rien n’est enregistré. Un module SCORM est obligatoire à l’import ; la case ci-dessus permet de le rendre facultatif.</p>
+      <button type="button" className="btn secondary editor-open" onClick={() => setOpen(true)}>Lancer l’aperçu</button>
+      {open && <ScormPlayer resource={resource} onClose={() => setOpen(false)} />}
+    </div>
+  )
+}
+
+function FilePreview({ resource }) {
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
   useEffect(() => {

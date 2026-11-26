@@ -1,0 +1,14 @@
+// Lecteur SCORM isolé. Déploiement depuis la racine du dépôt : npx wrangler deploy -c player/wrangler.jsonc
+// Secret à saisir dans Cloudflare (jamais ici) : SUPABASE_SECRET_KEY.
+{
+  "name": "lms-ifap-lecteur",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-09-29",
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": true },
+  "vars": {
+    "SUPABASE_URL": "https://yzrzcidecfojywfvnvtr.supabase.co",
+    "LMS_ORIGIN": "https://lms-ifap.marcdelareunion.workers.dev"
+  },
+  // Les adresses contiennent les tickets : pas de journal des requêtes.
+  "observability": { "enabled": false }
+}

@@ -7,6 +7,7 @@ import Shell from '../../../../components/Shell'
 import ContentTree from '../../../../components/editor/ContentTree'
 import CourseOptions from '../../../../components/editor/CourseOptions'
 import { ModulePanel, NewResource, ResourcePanel } from '../../../../components/editor/ResourcePanel'
+import { cleanOrphanPackages, discardPackage, importPackage } from '../../../../lib/scorm-import.mjs'
 import { createClient } from '../../../../lib/supabase-browser'
 import { canEditCourse, frenchError, NOT_ALLOWED } from '../../../../lib/deployment-rules.mjs'
 import { orderedTree, publishError } from '../../../../lib/content-rules.mjs'
@@ -20,6 +21,9 @@ export default function CourseEditor() {
   const [modules, setModules] = useState([])
   const [resources, setResources] = useState([])
   const [allowed, setAllowed] = useState(false)
+  const [scorm, setScorm] = useState(false)
+  const [pending, setPending] = useState([])
+  const [progress, setProgress] = useState(null)
   const [selected, setSelected] = useState({ type: 'options' })
   const [newModule, setNewModule] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -32,11 +36,13 @@ export default function CourseEditor() {
     const s = createClient()
     const { data: { user } } = await s.auth.getUser()
     if (!user) { location.href = '/login'; return }
-    const [c, m, r, me] = await Promise.all([
+    const [c, m, r, me, up, ifap] = await Promise.all([
       s.from('courses').select('id,title,description,objectives,target_audience,duration_minutes,modality,prerequisites,status,visibility,owner_organization_id').eq('id', id).maybeSingle(),
       s.from('course_modules').select('id,title,description,position,is_required,retired_at').eq('course_id', id).order('position'),
       s.from('course_resources').select('id,module_id,title,resource_type,storage_path,external_url,is_required,position,retired_at').eq('course_id', id).order('position'),
-      s.from('organization_members').select('organization_id,role').eq('user_id', user.id)
+      s.from('organization_members').select('organization_id,role').eq('user_id', user.id),
+      s.from('scorm_packages').select('id,title,storage_path').eq('course_id', id).eq('status', 'uploading'),
+      s.from('organizations').select('id').eq('kind', 'ifap')
     ])
     const failed = [c, m, r, me].find(x => x.error)
     if (failed) setError(frenchError(failed.error))
@@ -44,6 +50,9 @@ export default function CourseEditor() {
     setModules(m.data || [])
     setResources(r.data || [])
     setAllowed(Boolean(c.data) && canEditCourse(c.data, me.data || []))
+    setPending(up.data || [])
+    // L'import SCORM est réservé aux formations de l'IFAP ; la base le vérifie aussi.
+    setScorm((ifap.data || []).some(o => o.id === c.data?.owner_organization_id))
     setLoading(false)
   }
 
@@ -67,6 +76,7 @@ export default function CourseEditor() {
     }
     running.current = false
     setBusy(false)
+    setProgress(null)
   }
 
   const tree = orderedTree(modules, resources)
@@ -75,7 +85,7 @@ export default function CourseEditor() {
   const resource = selected.type === 'resource' ? resources.find(r => r.id === selected.id && !r.retired_at) : null
 
   const remove = (kind, item) => run(
-    s => removeItem(s, kind, item),
+    s => removeItem(s, kind, { ...item, course_id: id }, cleanOrphanPackages),
     result => result.outcome === 'retired' ? 'Élément retiré : les traces de formation sont conservées.' : 'Élément supprimé.',
     () => setSelected({ type: 'options' })
   )
@@ -85,7 +95,10 @@ export default function CourseEditor() {
   )
   const add = ({ type, title, url, file, required }) => {
     const content = { courseId: id, moduleId: selected.id, title, url, file, required, position: nextPosition(resources) }
-    run(s => type === 'link' ? addLink(s, content) : addPdf(s, { ...content, uuid: crypto.randomUUID() }), 'Contenu ajouté.', () => setSelected({ type: 'options' }))
+    const action = type === 'scorm' ? s => importPackage(s, content, (done, total) => setProgress({ done, total }))
+      : type === 'link' ? s => addLink(s, content)
+      : s => addPdf(s, { ...content, uuid: crypto.randomUUID() })
+    run(action, 'Contenu ajouté.', () => setSelected({ type: 'options' }))
   }
   const createModule = e => {
     e.preventDefault()
@@ -116,6 +129,19 @@ export default function CourseEditor() {
       {error && <div className="error" role="alert">{error}</div>}
       {!loading && !allowed && <div className="card">{NOT_ALLOWED}</div>}
 
+      {allowed && pending.length > 0 && !busy && (
+        <div className="card editor-pending">
+          <h2>Envois interrompus</h2>
+          <p className="muted small">Ces modules ne sont pas visibles des stagiaires. Supprimez-les puis relancez l’import.</p>
+          {pending.map(p => (
+            <div key={p.id} className="actions">
+              <span>{p.title}</span>
+              <button type="button" className="btn secondary" onClick={() => run(s => discardPackage(s, p), 'Envoi interrompu supprimé.')}>Supprimer</button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {allowed && (
         <div className="editor">
           <aside className="editor-side" aria-label="Plan de la formation">
@@ -133,7 +159,7 @@ export default function CourseEditor() {
               onReorder={(moduleIds, resourceIds) => run(s => saveOrder(s, id, moduleIds, resourceIds), 'Ordre enregistré.')} />
           </aside>
           <section className="editor-panel card" aria-label="Élément sélectionné">
-            {selected.type === 'new' && module ? <NewResource key={selected.id} busy={busy} onAdd={add} />
+            {selected.type === 'new' && module ? <NewResource key={selected.id} busy={busy} scorm={scorm} progress={progress} onAdd={add} />
               : resource ? <ResourcePanel key={resource.id} resource={resource} busy={busy}
                   onSave={values => save('course_resources', resource.id, values)} onRemove={() => remove('resource', resource)} />
               : selected.type === 'module' && module ? <ModulePanel key={module.id} module={module} busy={busy}
