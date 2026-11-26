@@ -1,4 +1,4 @@
--- Retour arrière de 20261127000000_editeur_contenu.sql
+-- Retour arrière de 20261126231243_editeur_contenu.sql
 -- Rétablit politiques, droits et fonctions. Conservés : les colonnes retired_at et position (les contenus
 -- retirés redeviennent donc visibles et comptés) et le bucket course-resources avec ses fichiers.
 begin;

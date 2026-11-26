@@ -1,5 +1,5 @@
 -- Éditeur de formation : droits sur les contenus, stockage des PDF, retrait, ordre et publication.
--- Retour arrière : supabase/rollback/20261127000000_editeur_contenu.sql
+-- Retour arrière : supabase/rollback/20261126231243_editeur_contenu.sql
 
 -- 1. Colonnes ------------------------------------------------------------------------------------
 alter table public.course_modules add column retired_at timestamptz;
