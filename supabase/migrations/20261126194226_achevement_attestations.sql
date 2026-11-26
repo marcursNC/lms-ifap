@@ -1,5 +1,5 @@
 -- Achèvement des formations et attestations : la base calcule seule l'achèvement et délivre.
--- Retour arrière : supabase/rollback/20261127000000_achevement_attestations.sql
+-- Retour arrière : supabase/rollback/20261126194226_achevement_attestations.sql
 
 -- 1. Colonnes de trace et statuts ---------------------------------------------------------------
 alter table public.enrollments

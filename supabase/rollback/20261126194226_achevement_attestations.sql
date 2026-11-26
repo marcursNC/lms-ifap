@@ -1,4 +1,4 @@
--- Retour à l'état antérieur à 20261127000000_achevement_attestations.
+-- Retour à l'état antérieur à 20261126194226_achevement_attestations.
 -- Attention : rouvre les failles corrigées et rétablit les fonctions en panne.
 -- Aucune donnée supprimée : les colonnes de trace (annulation, validation, révocation) sont conservées.
 begin;
