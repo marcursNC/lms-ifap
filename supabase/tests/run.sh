@@ -1,5 +1,5 @@
 #!/bin/bash
-# usage : PGHOST=... supabase/tests/run.sh [deploiement|achevement] [avant]
+# usage : PGHOST=... supabase/tests/run.sh [deploiement|achevement|contenu] [avant]
 # Reconstruit une base jetable depuis les migrations puis joue les tests.
 # « avant » : sans la migration testée ni les suivantes (les échecs sont attendus).
 set -e
@@ -9,6 +9,7 @@ SUITE=${1:-deploiement}; DB=test_$SUITE
 case $SUITE in
   deploiement) NOUVELLE=20261126184023_deploiement_organisations.sql ;;
   achevement) NOUVELLE=20261126194226_achevement_attestations.sql ;;
+  contenu) NOUVELLE=20261127000000_editeur_contenu.sql ;;
   *) echo "suite inconnue : $SUITE" >&2; exit 2 ;;
 esac
 q(){ psql -q -v ON_ERROR_STOP=1 -d "$DB" "$@"; }

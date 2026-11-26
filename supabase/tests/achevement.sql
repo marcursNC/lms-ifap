@@ -98,10 +98,12 @@ select t.chk('A13 inscription 8','col_admin',t.enr(8,8,1),'ok',true);
 
 select t.chk('A14 demande « en attente » acceptée','second',t.enr(26,6,2,',status',',''pending'''),'ok',true);
 select t.chk('A15 le demandeur ne se valide pas','second',t.rpc('reactivate_enrollment',26),'refus');
-select t.chk('A16 une demande ne progresse pas','second',t.act(26,'resource_completed',61,6),'ok',true);
+select t.chk('A16 une demande n''enregistre aucune activité','second',t.act(26,'resource_completed',61,6),'refus');
 select t.etat('A17 reste en attente',26,'pending',0,0);
 select t.chk('A18 l''employeur accepte la demande','col_admin',t.rpc('reactivate_enrollment',26),'ok',true);
-select t.etat('A19 acceptée : le parcours se calcule',26,'completed',100,1);
+select t.etat('A19 acceptée : inscrit',26,'enrolled',0,0);
+select t.chk('A20 une fois acceptée, l''activité compte','second',t.act(26,'resource_completed',61,6),'ok',true);
+select t.etat('A21 le parcours se calcule',26,'completed',100,1);
 
 -- B. Écritures interdites
 select t.chk('B1 apprenant : module terminé enregistré','apprenant',t.act(1,'module_completed',null,1),'ok',true);
