@@ -43,7 +43,7 @@ export default function Page(){
      return true
    }
    return {
-    enrollments:data.enrollments.filter(r=>match(r,'started_at')),
+    enrollments:data.enrollments.filter(r=>r.status!=='cancelled'&&match(r,'started_at')),
     sessions:data.sessions.filter(r=>match(r,'start_at')),
     evaluations:data.evaluations.filter(r=>match(r,'attempted_at')),
     certificates:data.certificates.filter(r=>match(r,'issued_at'))
@@ -52,7 +52,7 @@ export default function Page(){
 
  const kpis=useMemo(()=>{
    const e=filtered.enrollments, s=filtered.sessions, ev=filtered.evaluations, c=filtered.certificates
-   const completed=e.filter(x=>x.status==='completed' || Number(x.progress)>=100).length
+   const completed=e.filter(x=>x.status==='completed').length
    const progress=e.length?Math.round(e.reduce((a,x)=>a+Number(x.progress||0),0)/e.length):0
    const attendance=s.reduce((a,x)=>a+Number(x.registered_count||0),0)
    const present=s.reduce((a,x)=>a+Number(x.present_count||0),0)
@@ -64,12 +64,12 @@ export default function Page(){
  },[filtered])
 
  const orgRows=useMemo(()=>{
-   const map={}; filtered.enrollments.forEach(e=>{const k=e.organization_id;if(!map[k])map[k]={name:e.organization_name,inscrits:0,completed:0,progress:0};map[k].inscrits++;map[k].progress+=Number(e.progress||0);if(e.status==='completed'||Number(e.progress)>=100)map[k].completed++})
+   const map={}; filtered.enrollments.forEach(e=>{const k=e.organization_id;if(!map[k])map[k]={name:e.organization_name,inscrits:0,completed:0,progress:0};map[k].inscrits++;map[k].progress+=Number(e.progress||0);if(e.status==='completed')map[k].completed++})
    return Object.values(map).map(x=>({...x,progress:x.inscrits?Math.round(x.progress/x.inscrits):0})).sort((a,b)=>b.inscrits-a.inscrits).slice(0,8)
  },[filtered.enrollments])
- const alerts=useMemo(()=>filtered.enrollments.filter(e=>e.status!=='completed'&&Number(e.progress)<50).sort((a,b)=>Number(a.progress)-Number(b.progress)).slice(0,8),[filtered.enrollments])
+ const alerts=useMemo(()=>filtered.enrollments.filter(e=>!['completed','awaiting_validation'].includes(e.status)&&Number(e.progress)<50).sort((a,b)=>Number(a.progress)-Number(b.progress)).slice(0,8),[filtered.enrollments])
  const courseRows=useMemo(()=>{
-   const map={};filtered.enrollments.forEach(e=>{const k=e.course_id;if(!map[k])map[k]={id:k,title:e.course_title,inscrits:0,completed:0,progress:0};map[k].inscrits++;map[k].progress+=Number(e.progress||0);if(e.status==='completed'||Number(e.progress)>=100)map[k].completed++})
+   const map={};filtered.enrollments.forEach(e=>{const k=e.course_id;if(!map[k])map[k]={id:k,title:e.course_title,inscrits:0,completed:0,progress:0};map[k].inscrits++;map[k].progress+=Number(e.progress||0);if(e.status==='completed')map[k].completed++})
    return Object.values(map).map(x=>({...x,progress:x.inscrits?Math.round(x.progress/x.inscrits):0})).sort((a,b)=>b.inscrits-a.inscrits).slice(0,8)
  },[filtered.enrollments])
 

@@ -83,7 +83,7 @@ export default function CatalogDetail() {
     if (insertError) setError(insertError.message)
     else {
       setEnrollment(data)
-      setDone('Vous êtes maintenant inscrit à cette formation.')
+      setDone(data.status === 'pending' ? 'Votre demande d’inscription est enregistrée.' : 'Vous êtes maintenant inscrit à cette formation.')
     }
     setBusy(false)
   }
@@ -139,7 +139,7 @@ export default function CatalogDetail() {
                 {enrollment ? (
                   <>
                     <div className="enrolled-state">✓</div>
-                    <h2>Vous êtes inscrit</h2>
+                    <h2>{enrollment.status === 'pending' ? 'Demande en attente' : enrollment.status === 'cancelled' ? 'Inscription annulée' : 'Vous êtes inscrit'}</h2>
                     <p>Votre progression actuelle : <b>{Math.round(Number(enrollment.progress || 0))}%</b></p>
                     <div className="progress-line"><span style={{ width: Math.min(100, Number(enrollment.progress || 0)) + '%' }} /></div>
                     <Link className="btn" href={`/learner/courses/${deployment?.id}`}>Accéder à la formation →</Link>

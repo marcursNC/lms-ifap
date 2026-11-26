@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
 import Shell from '../../components/Shell'
 import { createClient } from '../../lib/supabase-browser'
+import { ENROLLMENT_LABELS, isActiveEnrollment, isCompleted } from '../../lib/enrollment-rules.mjs'
 
 export default function LearnerHome() {
   const [loading, setLoading] = useState(true)
@@ -70,16 +71,18 @@ export default function LearnerHome() {
     })()
   }, [])
 
+  const mine = useMemo(() => rows.filter(isActiveEnrollment), [rows])
+
   const stats = useMemo(() => ({
-    active: rows.filter(r => r.status !== 'completed' && Number(r.progress) < 100).length,
-    completed: rows.filter(r => r.status === 'completed' || Number(r.progress) >= 100).length,
-    avg: rows.length ? Math.round(rows.reduce((a, r) => a + Number(r.progress || 0), 0) / rows.length) : 0,
+    active: mine.filter(r => !isCompleted(r)).length,
+    completed: mine.filter(isCompleted).length,
+    avg: mine.length ? Math.round(mine.reduce((a, r) => a + Number(r.progress || 0), 0) / mine.length) : 0,
     certs: certs.filter(c => !c.revoked_at).length
-  }), [rows, certs])
+  }), [mine, certs])
 
   const sessionStatus = (session) => { const a = attendance.find(x => x.session_id === session.id); if (new Date(session.start_at) >= new Date()) return {label:'À venir',kind:'upcoming'}; if (!a) return {label:'Présence en attente',kind:'pending'}; const ok = Number(a.attendance_percent ?? (a.present ? 100 : 0)) >= Number(session.required_attendance_percent ?? 80); return {label:ok?'Présence validée':'Présence insuffisante',kind:ok?'ok':'warning'} }
 
-  const next = rows.find(r => r.status !== 'completed' && Number(r.progress) < 100)
+  const next = mine.find(r => !['completed', 'awaiting_validation', 'pending'].includes(r.status))
 
   const recommendations = useMemo(() => {
     const enrolled = new Set(rows.map(r => r.deployments?.course_id).filter(Boolean))
@@ -158,25 +161,25 @@ export default function LearnerHome() {
       </section>
 
       <div className="learner-course-grid">
-        {rows.map(r => {
+        {mine.map(r => {
           const c = r.deployments?.courses
           const p = Math.round(Number(r.progress || 0))
           return (
             <Link className="modern-course" href={`/learner/courses/${r.deployment_id}`} key={r.id}>
-              <div className="course-art"><span>{courseInitial(c?.title)}</span><i>{p >= 100 ? '✓' : '▶'}</i></div>
+              <div className="course-art"><span>{courseInitial(c?.title)}</span><i>{isCompleted(r) ? '✓' : '▶'}</i></div>
               <div className="modern-course-body">
                 <div className="course-meta">{c?.modality || 'FORMATION'}{c?.duration_minutes ? ' · ' + Math.round(c.duration_minutes / 60 * 10) / 10 + ' h' : ''}</div>
                 <h3>{c?.title || 'Formation'}</h3>
                 <p>{c?.description || 'Développez vos compétences.'}</p>
                 <div className="progress-line"><span style={{ width: Math.min(100, p) + '%' }} /></div>
-                <div className="course-footer"><span>{p >= 100 ? 'Formation terminée' : 'Progression'}</span><b>{p}%</b></div>
+                <div className="course-footer"><span>{['completed', 'awaiting_validation', 'pending'].includes(r.status) ? ENROLLMENT_LABELS[r.status] : 'Progression'}</span><b>{p}%</b></div>
               </div>
             </Link>
           )
         })}
       </div>
 
-      {!rows.length && <div className="empty card">Aucune formation ne vous est encore attribuée.</div>}
+      {!mine.length && <div className="empty card">Aucune formation ne vous est encore attribuée.</div>}
 
       <div className="grid2 learner-bottom">
         <div className="card modern-panel">

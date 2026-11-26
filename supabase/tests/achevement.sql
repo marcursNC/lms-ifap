@@ -96,6 +96,13 @@ select t.chk('A11 inscription 5 interne IFAP','ifap_admin',t.enr(5,5,3),'ok',tru
 select t.chk('A12 inscription 7','col_admin',t.enr(7,7,1),'ok',true);
 select t.chk('A13 inscription 8','col_admin',t.enr(8,8,1),'ok',true);
 
+select t.chk('A14 demande « en attente » acceptée','second',t.enr(26,6,2,',status',',''pending'''),'ok',true);
+select t.chk('A15 le demandeur ne se valide pas','second',t.rpc('reactivate_enrollment',26),'refus');
+select t.chk('A16 une demande ne progresse pas','second',t.act(26,'resource_completed',61,6),'ok',true);
+select t.etat('A17 reste en attente',26,'pending',0,0);
+select t.chk('A18 l''employeur accepte la demande','col_admin',t.rpc('reactivate_enrollment',26),'ok',true);
+select t.etat('A19 acceptée : le parcours se calcule',26,'completed',100,1);
+
 -- B. Écritures interdites
 select t.chk('B1 apprenant : module terminé enregistré','apprenant',t.act(1,'module_completed',null,1),'ok',true);
 select t.etat('B2 … sans achèvement ni attestation',1,'in_progress',0,0);

@@ -4,6 +4,7 @@ import {useEffect,useState} from 'react'
 import {useParams} from 'next/navigation'
 import Shell from '../../../../components/Shell'
 import {createClient} from '../../../../lib/supabase-browser'
+import {ENROLLMENT_LABELS} from '../../../../lib/enrollment-rules.mjs'
 
 export default function LearnerCourse(){
   const {id}=useParams()
@@ -36,11 +37,17 @@ export default function LearnerCourse(){
     else if(resource.storage_path){const {data}=await s.storage.from('course-resources').createSignedUrl(resource.storage_path,3600);if(data?.signedUrl) window.open(data.signedUrl,'_blank','noopener,noreferrer')}
   }
 
+  // La progression est calculée par la base : on la relit.
+  async function refreshProgress(){
+    const {data}=await createClient().from('enrollments').select('status,progress,completed_at').eq('id',row.id).maybeSingle()
+    if(data)setRow(prev=>({...prev,...data}))
+  }
+
   async function completeResource(resource){
     setBusy(resource.id)
     const s=createClient()
     const {error:e}=await s.from('learning_activity_log').insert({enrollment_id:row.id,resource_id:resource.id,module_id:resource.module_id,activity_type:'resource_completed',started_at:new Date().toISOString(),ended_at:new Date().toISOString(),progress:100,metadata:{resource_type:resource.resource_type||'unknown'}})
-    if(e)setError(e.message); else setCompletedResources(prev=>new Set([...prev,resource.id]))
+    if(e)setError(e.message); else {setCompletedResources(prev=>new Set([...prev,resource.id]));await refreshProgress()}
     setBusy('')
   }
 
@@ -51,7 +58,7 @@ export default function LearnerCourse(){
     setBusy(module.id)
     const s=createClient()
     const {error:e}=await s.from('learning_activity_log').insert({enrollment_id:row.id,module_id:module.id,activity_type:'module_completed',started_at:new Date().toISOString(),ended_at:new Date().toISOString(),progress:100,metadata:{module_title:module.title}})
-    if(e)setError(e.message); else {setCompletedModules(prev=>new Set([...prev,module.id]));setRow(prev=>({...prev,progress:Math.min(100,Number(prev.progress||0)+(100/Math.max(1,modules.filter(m=>m.is_required).length)))}))}
+    if(e)setError(e.message); else {setCompletedModules(prev=>new Set([...prev,module.id]));await refreshProgress()}
     setBusy('')
   }
 
@@ -64,14 +71,17 @@ export default function LearnerCourse(){
     </header>
     {error&&<div className="error" role="alert">{error}</div>}
     {loading?<div className="card" role="status" aria-live="polite">Chargement de votre parcours…</div>:<>
-      <section className="course-hero-meta" aria-label="Informations sur la formation"><span>◷ {row?.deployments?.courses?.duration_minutes?`${row.deployments.courses.duration_minutes} min`:'À votre rythme'}</span><span>▣ {row?.deployments?.courses?.modality||'E-learning'}</span><span>✓ {row?.status==='completed'?'Terminée':'En cours'}</span></section>
+      <section className="course-hero-meta" aria-label="Informations sur la formation"><span>◷ {row?.deployments?.courses?.duration_minutes?`${row.deployments.courses.duration_minutes} min`:'À votre rythme'}</span><span>▣ {row?.deployments?.courses?.modality||'E-learning'}</span><span>✓ {ENROLLMENT_LABELS[row?.status]||'En cours'}</span></section>
+      {row?.status==='awaiting_validation'&&<div className="success" role="status">Parcours accompli. L’attestation sera délivrée après validation par l’organisme de formation.</div>}
+      {row?.status==='pending'&&<div className="success" role="status">Votre demande d’inscription est en attente d’acceptation par votre employeur.</div>}
+      {row?.status==='cancelled'&&<div className="error" role="status">Cette inscription est annulée : votre activité n’est plus enregistrée.</div>}
       <div className="grid2 learner-detail-grid">
         <section className="card" aria-labelledby="programme-title"><span className="eyebrow">PARCOURS</span><h2 id="programme-title">Votre programme</h2>
           {modules.length?modules.map((m,i)=>{const rs=resources.filter(r=>r.module_id===m.id);const required=rs.filter(r=>r.is_required);const ready=required.every(r=>completedResources.has(r.id));const done=completedModules.has(m.id);const isOpen=opened===m.id;return <article className="module-row" key={m.id}>
             <button type="button" className="module-toggle" aria-expanded={isOpen} onClick={()=>setOpened(isOpen?null:m.id)}><span className="module-number" aria-hidden="true">{i+1}</span><span><b>{m.title}</b><span className="muted small">{m.description||'Module de formation'}</span>{m.is_required&&<span className="badge">Obligatoire</span>}</span><span aria-hidden="true">{done?'✓':isOpen?'−':'+'}</span></button>
             {isOpen&&<div className="module-resources" aria-label={`Ressources du module ${m.title}`}>
-              {rs.length?rs.map(resource=><div className="resource-row" key={resource.id}><button type="button" onClick={()=>openResource(resource)}><span className="resource-icon" aria-hidden="true">↗</span><span><b>{resource.title}</b><span className="muted small">{resourceTypeLabel(resource.resource_type)}{resource.is_required?' · Obligatoire':' · Facultatif'}</span></span></button><button type="button" className="resource-complete" disabled={completedResources.has(resource.id)||busy===resource.id} onClick={()=>completeResource(resource)}>{completedResources.has(resource.id)?'✓ Terminé':busy===resource.id?'…':'Terminer'}</button></div>):<p className="empty">Aucune ressource disponible pour le moment.</p>}
-              {!done&&<button type="button" className="btn module-complete" disabled={!ready||busy===m.id} onClick={()=>completeModule(m)}>{busy===m.id?'Validation…':ready?'Valider le module':'Terminez les ressources obligatoires'}</button>}
+              {rs.length?rs.map(resource=><div className="resource-row" key={resource.id}><button type="button" onClick={()=>openResource(resource)}><span className="resource-icon" aria-hidden="true">↗</span><span><b>{resource.title}</b><span className="muted small">{resourceTypeLabel(resource.resource_type)}{resource.is_required?' · Obligatoire':' · Facultatif'}</span></span></button><button type="button" className="resource-complete" disabled={['cancelled','pending'].includes(row?.status)||completedResources.has(resource.id)||busy===resource.id} onClick={()=>completeResource(resource)}>{completedResources.has(resource.id)?'✓ Terminé':busy===resource.id?'…':'Terminer'}</button></div>):<p className="empty">Aucune ressource disponible pour le moment.</p>}
+              {!done&&<button type="button" className="btn module-complete" disabled={['cancelled','pending'].includes(row?.status)||!ready||busy===m.id} onClick={()=>completeModule(m)}>{busy===m.id?'Validation…':ready?'Valider le module':'Terminez les ressources obligatoires'}</button>}
               {done&&<p className="success" role="status">Module terminé ✓</p>}
             </div>}
           </article>}):<div className="empty">Les contenus seront bientôt disponibles.</div>}

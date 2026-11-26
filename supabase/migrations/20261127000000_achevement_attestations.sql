@@ -229,7 +229,7 @@ create function app_private.enforce_enrollment_initial_state()
 returns trigger language plpgsql set search_path = '' as $$
 begin
   if current_user in ('anon','authenticated') and (
-       new.status <> 'enrolled' or new.progress <> 0 or new.started_at is not null or new.completed_at is not null
+       new.status not in ('enrolled','pending') or new.progress <> 0 or new.started_at is not null or new.completed_at is not null
        or new.cancelled_at is not null or new.cancelled_by is not null or new.validated_at is not null
        or new.validated_by is not null or new.validation_reason is not null) then
     raise exception 'Une inscription commence à « inscrit », sans progression';
@@ -380,6 +380,7 @@ begin
   where id = p_enrollment;
 end $$;
 
+-- Réactive une inscription annulée ou accepte une demande en attente.
 create function public.reactivate_enrollment(p_enrollment uuid)
 returns void language plpgsql security definer set search_path = '' as $$
 declare e record; n integer;
@@ -394,7 +395,7 @@ begin
       or app_private.is_org_member(e.organization_id, array['org_admin','trainer','platform_admin']::public.member_role[])) then
     raise exception 'Action non autorisée' using errcode = '42501';
   end if;
-  if e.status <> 'cancelled' then raise exception 'Cette inscription n''est pas annulée'; end if;
+  if e.status not in ('cancelled','pending') then raise exception 'Cette inscription n''est ni annulée ni en attente'; end if;
   if e.deployment_status <> 'available'::public.deployment_status then
     raise exception 'Ce déploiement n''accepte plus d''inscription';
   end if;

@@ -9,6 +9,7 @@ import {
   deployTargets, enrollmentModes, canManageDeployment, canEditCourse,
   frenchError, NOT_ALLOWED, STATUS_LABELS, MODE_LABELS
 } from '../../../lib/deployment-rules.mjs'
+import { isCourseOwnerAdmin } from '../../../lib/enrollment-rules.mjs'
 
 // Actions proposées selon le statut : [statut visé, bouton, confirmation]
 const ACTIONS = {
@@ -102,6 +103,7 @@ export default function Course() {
         </div>
         <div className="actions">
           <Link className="btn secondary" href="/courses">Retour</Link>
+          {isCourseOwnerAdmin(course, memberships) && <Link className="btn secondary" href={`/courses/${id}/suivi`}>Suivi et validation</Link>}
           {editable && course.status === 'draft' && <button className="btn" onClick={publish} disabled={busy}>Publier</button>}
           {editable && course.visibility !== 'ifap_catalog' && course.organizations?.kind === 'ifap' && <button className="btn" onClick={publishCatalog} disabled={busy}>Publier au catalogue IFAP</button>}
           {freeTargets.length > 0 && <button className="btn" onClick={() => setShowDeploy(v => !v)}>+ Déployer</button>}

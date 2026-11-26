@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Shell from '../../../components/Shell'
 import { createClient } from '../../../lib/supabase-browser'
 import { canEnroll, frenchError, STATUS_LABELS, MODE_LABELS } from '../../../lib/deployment-rules.mjs'
+import { ENROLLMENT_LABELS, enrollmentActions, isActiveEnrollment } from '../../../lib/enrollment-rules.mjs'
 
 const MANAGER_MODES = ['prescribed', 'employer', 'manager']
 
@@ -13,7 +14,8 @@ export default function DeploymentPage() {
   const { id } = useParams()
   const [dep, setDep] = useState(null)
   const [learners, setLearners] = useState([])
-  const [enrolled, setEnrolled] = useState(new Set())
+  const [enrolled, setEnrolled] = useState(new Map())
+  const [pending, setPending] = useState(null)
   const [selected, setSelected] = useState([])
   const [allowed, setAllowed] = useState(false)
   const [mode, setMode] = useState('prescribed')
@@ -52,7 +54,7 @@ export default function DeploymentPage() {
       if (l.error || e.error) setError(frenchError(l.error || e.error))
       else {
         setLearners((l.data || []).filter(x => x.is_active))
-        setEnrolled(new Set((e.data || []).map(x => x.learner_id)))
+        setEnrolled(new Map((e.data || []).map(x => [x.learner_id, x])))
       }
     }
     setLoading(false)
@@ -68,6 +70,18 @@ export default function DeploymentPage() {
         ? value.filter(x => x !== learnerId)
         : [...value, learnerId]
     )
+  }
+
+  async function change(call) {
+    setBusy(true)
+    setError('')
+    setMessage('')
+    const { error: failure } = await createClient().rpc(call, { p_enrollment: pending.id })
+    if (failure) setError(frenchError(failure))
+    else setMessage(call === 'cancel_enrollment' ? 'Inscription annulée.' : 'Inscription active.')
+    setPending(null)
+    await load()
+    setBusy(false)
   }
 
   async function enroll() {
@@ -118,7 +132,7 @@ export default function DeploymentPage() {
 
       <div className="grid">
         <div className="card"><div className="muted small">ORGANISATION</div><div className="kpi">{dep?.organizations?.name || '—'}</div></div>
-        <div className="card"><div className="muted small">INSCRITS</div><div className="kpi">{allowed ? enrolled.size : '—'}</div></div>
+        <div className="card"><div className="muted small">INSCRITS</div><div className="kpi">{allowed ? [...enrolled.values()].filter(isActiveEnrollment).length : '—'}</div></div>
         <div className="card"><div className="muted small">CAPACITÉ</div><div className="kpi">{dep?.capacity || '∞'}</div></div>
         <div className="card"><div className="muted small">STATUT</div><div className="kpi">{STATUS_LABELS[dep?.status] || '—'}</div></div>
         <div className="card"><div className="muted small">MODE</div><div className="kpi">{MODE_LABELS[dep?.enrollment_mode] || '—'}</div></div>
@@ -148,18 +162,35 @@ export default function DeploymentPage() {
             ) : (
               <table className="table">
                 <thead>
-                  <tr><th></th><th>Apprenant</th><th>Fonction</th><th>Service</th><th>Statut</th></tr>
+                  <tr><th></th><th>Apprenant</th><th>Fonction</th><th>Service</th><th>Statut</th><th>Actions</th></tr>
                 </thead>
                 <tbody>
                   {learners.map(learner => {
-                    const isIn = enrolled.has(learner.id)
+                    const enrollment = enrolled.get(learner.id)
+                    const isIn = Boolean(enrollment)
+                    const can = enrollment ? enrollmentActions(enrollment) : {}
                     return (
                       <tr key={learner.id}>
                         <td><input type="checkbox" checked={selected.includes(learner.id) || isIn} disabled={isIn} onChange={() => toggle(learner.id)} /></td>
                         <td><b>{learner.first_name} {learner.last_name}</b><div className="muted small">{learner.email || '—'}</div></td>
                         <td>{learner.job_title || '—'}</td>
                         <td>{learner.department || '—'}</td>
-                        <td><span className="badge">{isIn ? 'Déjà inscrit' : 'Disponible'}</span></td>
+                        <td><span className="badge">{isIn ? ENROLLMENT_LABELS[enrollment.status] || enrollment.status : 'Disponible'}</span></td>
+                        <td>
+                          <div className="actions">
+                            {pending?.id === enrollment?.id && pending ? (
+                              <>
+                                <button className="btn small-btn" disabled={busy} onClick={() => change(pending.call)}>Confirmer</button>
+                                <button className="btn secondary small-btn" disabled={busy} onClick={() => setPending(null)}>Fermer</button>
+                              </>
+                            ) : (
+                              <>
+                                {can.reactivate && <button className="btn secondary small-btn" disabled={busy} onClick={() => setPending({ id: enrollment.id, call: 'reactivate_enrollment' })}>{enrollment.status === 'pending' ? 'Accepter' : 'Réactiver'}</button>}
+                                {can.cancel && <button className="btn secondary small-btn" disabled={busy} onClick={() => setPending({ id: enrollment.id, call: 'cancel_enrollment' })}>Annuler</button>}
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     )
                   })}
