@@ -18,3 +18,5 @@ Rejeu des 33 fichiers sur une base PostgreSQL 16 vide (après `verification/stub
 Non comparés : privilèges (GRANT), contenu des tables dont les compartiments de stockage, réglages du projet Supabase.
 
 `database/schema.sql` est l'ancien schéma initial et ne reflète plus la base.
+
+`20261128000000_scorm_lecteur.sql` (modules SCORM) : **pas encore appliquée en production**. Tests : `tests/scorm.sql`. Retour arrière dans `rollback/`.
