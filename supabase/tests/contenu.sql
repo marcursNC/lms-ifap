@@ -124,6 +124,89 @@ select t.chk('A35 fichier orphelin supprimable par le gestionnaire','ifap_admin'
 select t.chk('A36 … pas par la commune','col_admin',t.fichier(t.chemin(1,62),'delete from'),'refus');
 select t.chk('A37 bucket privé limité aux PDF de 20 Mo','systeme','select 1 from storage.buckets where id=''course-resources'' and not public and file_size_limit=20971520 and allowed_mime_types=array[''application/pdf'']','1');
 
+-- C. Retrait, recalcul, ordre, publication
+insert into public.learners(id,organization_id,user_id,first_name,last_name)
+select t.id('2',4), t.id('1',2), uid, 'Test', k from t.who where k='autre_apprenant';
+insert into public.courses(id,owner_organization_id,title,visibility,status)
+select t.id('3',i), t.id('1',1), 'T cours '||i, 'ifap_catalog','published' from generate_series(5,8) i;
+insert into public.course_modules(id,course_id,title,position,content_type)
+select t.id('4',i*10+n), t.id('3',i), 'M', n, 'module' from generate_series(5,8) i, generate_series(1,3) n;
+create function t.res_(i int) returns void language sql as $$
+ insert into public.course_resources(id,course_id,module_id,title,resource_type,external_url,is_required)
+ values (t.id('b',i), t.id('3',i/100), t.id('4',(i/100)*10+1), 'R', 'link', 'https://example.nc', true) $$;
+select t.res_(i) from unnest(array[501,502,601,602,701,702,801]) i;
+insert into public.deployments(id,course_id,target_organization_id,status,enrollment_mode)
+select t.id('8',i), t.id('3',i), t.id('1',2), 'available', 'manager' from generate_series(5,8) i;
+insert into public.enrollments(id,deployment_id,learner_id,enrollment_mode)
+select t.id('9',n), t.id('8',n/10), t.id('2',l), 'manager' from (values (51,1),(52,4),(61,1),(71,1),(81,1)) v(n,l);
+insert into public.sessions(id,deployment_id,title,start_at,end_at,required_attendance_percent)
+values (t.id('c',7),t.id('8',7),'S',now()-interval '2 hours',now()-interval '1 hour',80);
+insert into public.session_enrollments(session_id,enrollment_id) values (t.id('c',7),t.id('9',71));
+insert into public.attendance(session_id,learner_id,present) values (t.id('c',7),t.id('2',1),true);
+create function t.act(i int, res int, typ text default 'resource_completed') returns text language sql as $$
+ select format('insert into public.learning_activity_log(enrollment_id,activity_type,resource_id) values (%L,%L,%L)',t.id('9',i),typ,t.id('b',res)) $$;
+create function t.retrait(typ text, p text, i int, attendu text) returns text language sql as $$
+ select format('select 1 where public.remove_course_item(%L,%L)=%L',typ,t.id(p,i),attendu) $$;
+create function t.nb(tab text, p text, i int, cond text default 'true') returns text language sql as $$
+ select format('select 1 from public.%I where id=%L and %s',tab,t.id(p,i),cond) $$;
+
+select t.chk('C0a suivi : 501','apprenant',t.act(51,501),'ok',true);
+select t.chk('C0b autre : 501','autre_apprenant',t.act(52,501),'ok',true);
+select t.chk('C0c autre : 502','autre_apprenant',t.act(52,502),'ok',true);
+select t.etat('C0d un parcours terminé',52,'completed',100,1);
+-- recalcul
+select t.chk('C10 ajout obligatoire','ifap_admin',t.ajout(503,5,51),'ok',true);
+select t.etat('C11 le parcours en cours s''y plie',51,'in_progress',33.33,0);
+select t.etat('C12 le terminé ne change pas',52,'completed',100,1);
+select t.chk('C13 passage en facultatif','ifap_admin',format('update public.course_resources set is_required=false where id=%L',t.id('b',503)),'ok',true);
+select t.etat('C13b recalculé',51,'in_progress',50,0);
+select t.chk('C14 dernier restant facultatif','ifap_admin',format('update public.course_resources set is_required=false where id=%L',t.id('b',502)),'ok',true);
+select t.etat('C14b terminé et attesté',51,'completed',100,1);
+-- retrait et suppression
+select t.chk('C7 suppression directe d''un contenu refusée','ifap_admin',format('delete from public.course_resources where id=%L',t.id('b',503)),'refus');
+select t.chk('C7b suppression directe d''un module refusée','ifap_admin',format('delete from public.course_modules where id=%L',t.id('4',52)),'refus');
+select t.chk('C8 la commune ne retire pas chez l''IFAP','col_admin',t.retrait('resource','b',503,'deleted'),'refus');
+select t.chk('C9 le stagiaire non plus','apprenant',t.retrait('resource','b',501,'retired'),'refus');
+select t.chk('C9b anonyme non plus','anonyme',t.retrait('resource','b',501,'retired'),'refus');
+select t.chk('C1 contenu sans activité supprimé','ifap_admin',t.retrait('resource','b',503,'deleted'),'ok',true);
+select t.chk('C2 contenu suivi retiré','ifap_formateur',t.retrait('resource','b',501,'retired'),'ok',true);
+select t.chk('C3 la trace garde son contenu','systeme',format('select 1 from public.learning_activity_log where resource_id=%L',t.id('b',501)),'2');
+select t.chk('C20 second retrait refusé','ifap_admin',t.retrait('resource','b',501,'retired'),'refus');
+select t.chk('C20b second retrait d''un contenu supprimé refusé','ifap_admin',t.retrait('resource','b',503,'deleted'),'refus');
+select t.chk('C4 module au contenu suivi : retiré','ifap_admin',t.retrait('module','4',51,'retired'),'ok',true);
+select t.chk('C5 … ses contenus aussi','systeme',format('select 1 from public.course_resources where module_id=%L and retired_at is not null',t.id('4',51)),'2');
+select t.chk('C6 contenu ajouté à un module vierge','ifap_admin',t.ajout(504,5,52),'ok',true);
+select t.chk('C6b module vierge supprimé','ifap_admin',t.retrait('module','4',52,'deleted'),'ok',true);
+select t.chk('C6c … avec ses contenus','systeme',t.nb('course_resources','b',504),'0');
+-- dernier obligatoire
+select t.chk('C30a suivi 601','apprenant',t.act(61,601),'ok',true);
+select t.chk('C30 retrait du dernier obligatoire restant','ifap_admin',t.retrait('resource','b',602,'deleted'),'ok',true);
+select t.etat('C30b terminé et attesté',61,'completed',100,1);
+select t.chk('C31a suivi 701','apprenant',t.act(71,701),'ok',true);
+select t.chk('C31 même chose chez un tiers avec séance','ifap_admin',t.retrait('resource','b',702,'deleted'),'ok',true);
+select t.etat('C32 à valider',71,'awaiting_validation',100,0);
+select t.chk('C33a ouverture 801','apprenant',t.act(81,801,'resource_opened'),'ok',true);
+select t.chk('C33 retrait du seul obligatoire','ifap_admin',t.retrait('resource','b',801,'retired'),'ok',true);
+select t.etat('C33b rien ne se termine',81,'in_progress',0,0);
+-- ordre
+select t.chk('C40a deux contenus','ifap_admin',t.ajout(603,6,61)||'; '||t.ajout(604,6,61),'ok',true);
+select t.chk('C40 ordre appliqué','ifap_formateur',format('select public.reorder_course_content(%L,array[%L,%L]::uuid[],array[%L,%L]::uuid[])',
+ t.id('3',6),t.id('4',62),t.id('4',61),t.id('b',604),t.id('b',603)),'ok',true);
+select t.chk('C40b modules rangés','systeme',t.nb('course_modules','4',62,'position=1'),'1');
+select t.chk('C40c contenus rangés','systeme',t.nb('course_resources','b',603,'position=2'),'1');
+select t.chk('C41 identifiant d''une autre formation refusé','ifap_admin',format('select public.reorder_course_content(%L,array[%L]::uuid[],array[]::uuid[])',t.id('3',6),t.id('4',71)),'refus');
+select t.chk('C41b contenu étranger refusé','ifap_admin',format('select public.reorder_course_content(%L,array[]::uuid[],array[%L]::uuid[])',t.id('3',6),t.id('b',701)),'refus');
+select t.chk('C42 non-gestionnaire refusé','col_admin',format('select public.reorder_course_content(%L,array[%L]::uuid[],array[]::uuid[])',t.id('3',6),t.id('4',61)),'refus');
+-- publication
+insert into public.courses(id,owner_organization_id,title,visibility,status) values (t.id('3',9),t.id('1',1),'T vide','private','draft');
+create function t.publier(i int) returns text language sql as $$ select format('update public.courses set status=''published'' where id=%L',t.id('3',i)) $$;
+select t.chk('C50 publication d''une formation vide refusée','ifap_admin',t.publier(9),'refus');
+select t.chk('C51 création directement publiée refusée','ifap_admin',format('insert into public.courses(owner_organization_id,title,status) values (%L,''X'',''published'')',t.id('1',1)),'refus');
+select t.chk('C51b création en brouillon acceptée','ifap_admin',format('insert into public.courses(owner_organization_id,title,status) values (%L,''X'',''draft'')',t.id('1',1)),'ok');
+select t.chk('C52 un contenu ajouté','ifap_admin',t.ajout(901,9,null),'ok',true);
+select t.chk('C53 publication acceptée','ifap_admin',t.publier(9),'ok',true);
+select t.chk('C54 passage au catalogue d''une formation déjà publiée','ifap_admin',format('update public.courses set visibility=''ifap_catalog'' where id=%L',t.id('3',5)),'ok');
+
 \o
 select n, nom, left(detail,100) detail from t.res where not ok order by n;
 select count(*) filter (where ok) as reussis, count(*) filter (where not ok) as echecs from t.res;
