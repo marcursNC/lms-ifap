@@ -19,4 +19,4 @@ Non comparés : privilèges (GRANT), contenu des tables dont les compartiments d
 
 `database/schema.sql` est l'ancien schéma initial et ne reflète plus la base.
 
-`20261128000000_scorm_lecteur.sql` (modules SCORM) : **pas encore appliquée en production**. Tests : `tests/scorm.sql`. Retour arrière dans `rollback/`.
+`20261127001634_scorm_lecteur.sql` (modules SCORM) : appliquée en production le 27/11/2026. Tests : `tests/scorm.sql`. Retour arrière dans `rollback/`.

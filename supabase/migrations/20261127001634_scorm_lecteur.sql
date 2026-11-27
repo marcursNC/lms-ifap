@@ -1,5 +1,5 @@
 -- Modules SCORM 1.2 : paquets, stockage, tickets du lecteur isolé, enregistrement des résultats.
--- Retour arrière : supabase/rollback/20261128000000_scorm_lecteur.sql
+-- Retour arrière : supabase/rollback/20261127001634_scorm_lecteur.sql
 
 -- 1. Paquets -------------------------------------------------------------------------------------
 alter table public.scorm_packages

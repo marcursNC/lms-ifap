@@ -1,4 +1,4 @@
--- Retour arrière de 20261128000000_scorm_lecteur.sql. Annuler d'abord le code de l'application.
+-- Retour arrière de 20261127001634_scorm_lecteur.sql. Annuler d'abord le code de l'application.
 -- Les paquets et tentatives enregistrés sont conservés ; les colonnes ajoutées disparaissent.
 begin;
 drop policy learning_activity_log_scorm_guard on public.learning_activity_log;
