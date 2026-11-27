@@ -177,6 +177,10 @@ select t.chk('S43b même session renvoyée','apprenant',t.save(1,'p1','{"session
 select t.chk('S43c même session prolongée','apprenant',t.save(1,'p1','{"session_seconds":90}',1),'ok',true);
 select t.chk('S43d autre session','apprenant',t.save(1,'p1','{"session_seconds":10}',2),'ok',true);
 select t.chk('S43e total 100 s','systeme',t.tentative(1,'total_time_seconds=100'),'1');
+select t.chk('S43g séance de 30 h acceptée','apprenant',t.save(1,'p1','{"session_seconds":108000}',3),'ok',true);
+select t.chk('S43h comptée au plus 24 h','systeme',t.tentative(1,'total_time_seconds=86500'),'1');
+select t.chk('S43i durée extrême acceptée','apprenant',t.save(1,'p1','{"session_seconds":35999999}',3),'ok',true);
+select t.chk('S43j non recomptée','systeme',t.tentative(1,'total_time_seconds=86500'),'1');
 select t.chk('S43f les champs absents sont conservés','systeme',t.tentative(1,'suspend_data=''{"a":1}'' and lesson_status=''incomplete'''),'1');
 select t.chk('S46 « Terminer » à la main refusé sur un SCORM','apprenant',format('insert into public.learning_activity_log(enrollment_id,activity_type,resource_id) values (%L,''resource_completed'',%L)',t.id('9',1),t.v('r1')),'refus');
 select t.chk('S46b progression à 100 refusée aussi','apprenant',format('insert into public.learning_activity_log(enrollment_id,activity_type,resource_id,progress) values (%L,''resource_opened'',%L,100)',t.id('9',1),t.v('r1')),'refus');

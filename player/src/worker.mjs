@@ -28,7 +28,7 @@ function page(env) {
 function filePath(raw) {
   try {
     const parts = raw.split('/').map(decodeURIComponent)
-    return parts.some(p => p === '' || p === '.' || p === '..' || /[/\\]/.test(p)) ? null : parts.join('/')
+    return parts.some(p => p === '' || p === '.' || p === '..' || /[/\\]/.test(p)) ? null : parts.join('/').normalize('NFC')
   } catch { return null }
 }
 

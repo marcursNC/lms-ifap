@@ -41,7 +41,7 @@ export default function CourseEditor() {
       s.from('course_modules').select('id,title,description,position,is_required,retired_at').eq('course_id', id).order('position'),
       s.from('course_resources').select('id,module_id,title,resource_type,storage_path,external_url,is_required,position,retired_at').eq('course_id', id).order('position'),
       s.from('organization_members').select('organization_id,role').eq('user_id', user.id),
-      s.from('scorm_packages').select('id,title,storage_path').eq('course_id', id).eq('status', 'uploading'),
+      s.from('scorm_packages').select('id,title,storage_path').eq('course_id', id).is('resource_id', null),
       s.from('organizations').select('id').eq('kind', 'ifap')
     ])
     const failed = [c, m, r, me].find(x => x.error)
@@ -131,12 +131,12 @@ export default function CourseEditor() {
 
       {allowed && pending.length > 0 && !busy && (
         <div className="card editor-pending">
-          <h2>Envois interrompus</h2>
-          <p className="muted small">Ces modules ne sont pas visibles des stagiaires. Supprimez-les puis relancez l’import.</p>
+          <h2>Paquets à nettoyer</h2>
+          <p className="muted small">Aucun contenu n’utilise ces modules : envoi interrompu ou encore en cours, ou contenu supprimé. Les stagiaires ne les voient pas.</p>
           {pending.map(p => (
             <div key={p.id} className="actions">
               <span>{p.title}</span>
-              <button type="button" className="btn secondary" onClick={() => run(s => discardPackage(s, p), 'Envoi interrompu supprimé.')}>Supprimer</button>
+              <button type="button" className="btn secondary" onClick={() => run(s => discardPackage(s, p), 'Paquet supprimé.')}>Supprimer</button>
             </div>
           ))}
         </div>

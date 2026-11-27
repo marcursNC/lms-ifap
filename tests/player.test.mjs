@@ -89,3 +89,7 @@ test('lecteur mal configuré : message clair', async () => {
   const r = await worker.fetch(new Request(`https://lecteur.test/c/${TOKEN}/index.html`), { ...env, SUPABASE_SECRET_KEY: '' })
   assert.equal(r.status, 503)
 })
+test('adresse en caractères décomposés : même fichier', async () => {
+  const r = await get(`/c/${TOKEN}/images/${encodeURIComponent('été à.png'.normalize('NFD'))}`)
+  assert.equal(r.status, 200)
+})

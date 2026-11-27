@@ -76,3 +76,24 @@ test('score minimal lu', () => {
   const m = manifest({ items: '<item identifier="I1" identifierref="R1"><title>M</title><adlcp:masteryscore>80</adlcp:masteryscore></item>' })
   assert.equal(readPackage(pkg(['index.html'], m)).mastery, 80)
 })
+
+// Un zip sans l'indicateur UTF-8 livre ses noms octet par octet (lecture « latin-1 » de la bibliothèque).
+const brut = (s, encoding = 'utf8') => Buffer.from(s, encoding).toString('latin1')
+
+test('noms accentués d’un zip sans indicateur UTF-8 (macOS)', () => {
+  const m = manifest({ resources: '<resource identifier="R1" adlcp:scormtype="sco" href="début.html"/>' })
+  const p = readPackage(pkg([brut('début.html'), brut('images/été – 1.png')], m))
+  assert.equal(p.launch, 'début.html')
+  assert.ok(p.files.has('images/été – 1.png'), [...p.files.keys()].join())
+})
+
+test('noms accentués d’un zip Windows ancien (page de codes 850)', () => {
+  // é = 0x82, è = 0x8A, à = 0x85, ç = 0x87
+  const p = readPackage(pkg(['index.html', 'le\u0087on \u0085 r\u0082gl\u008Ae.png']))
+  assert.ok(p.files.has('leçon à réglèe.png'), [...p.files.keys()].join())
+})
+
+test('noms décomposés (macOS) recomposés ; noms déjà corrects inchangés', () => {
+  const p = readPackage(pkg(['index.html', 'été.png'.normalize('NFD'), 'côté – à.png', 'Ă.png']))
+  assert.deepEqual(['été.png', 'côté – à.png', 'Ă.png'].filter(n => !p.files.has(n)), [])
+})

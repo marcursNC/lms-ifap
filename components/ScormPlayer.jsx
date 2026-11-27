@@ -5,6 +5,8 @@ import { frenchError } from '../lib/deployment-rules.mjs'
 
 const PLAYER = process.env.NEXT_PUBLIC_PLAYER_URL || 'https://lms-ifap-lecteur.marcdelareunion.workers.dev'
 const RETRY_MS = 5000
+const SILENT_MS = 15000
+const TICKET_MS = 4 * 3600 * 1000
 
 // Module SCORM affiché depuis le lecteur isolé. Les résultats passent par la session du LMS.
 // Sans inscription (aperçu du gestionnaire), rien n'est enregistré.
@@ -17,6 +19,8 @@ export default function ScormPlayer({ resource, enrollment, onResult, onClose })
   const [unsaved, setUnsaved] = useState('')
   const [closing, setClosing] = useState(false)
   const [blocked, setBlocked] = useState(false)
+  const [silent, setSilent] = useState(false)
+  const [expired, setExpired] = useState(false)
 
   useEffect(() => {
     const l = live.current
@@ -59,11 +63,14 @@ export default function ScormPlayer({ resource, enrollment, onResult, onClose })
 
   useEffect(() => {
     if (!opening) return
+    const noAnswer = setTimeout(() => setSilent(true), SILENT_MS)
+    const expiry = setTimeout(() => setExpired(true), TICKET_MS)
     const receive = event => {
       // Seule la page du lecteur, à son adresse, est écoutée.
       if (event.origin !== new URL(PLAYER).origin || event.source !== frame.current?.contentWindow) return
       const message = event.data
       if (message?.type === 'scorm:ready') {
+        clearTimeout(noAnswer); setSilent(false)
         event.source.postMessage({ type: 'scorm:init', token: opening.token, launch: opening.launch_path, state: opening.state }, event.origin)
       } else if (message?.type === 'scorm:commit' && enrollment && message.data) {
         live.current.pending = message.data
@@ -73,7 +80,10 @@ export default function ScormPlayer({ resource, enrollment, onResult, onClose })
     const warn = event => { if (live.current.pending) { event.preventDefault(); event.returnValue = '' } }
     window.addEventListener('message', receive)
     window.addEventListener('beforeunload', warn)
-    return () => { window.removeEventListener('message', receive); window.removeEventListener('beforeunload', warn) }
+    return () => {
+      clearTimeout(noAnswer); clearTimeout(expiry)
+      window.removeEventListener('message', receive); window.removeEventListener('beforeunload', warn)
+    }
   }, [opening])
 
   // Laisse le module enregistrer avant de fermer ; reste ouvert si l'envoi échoue.
@@ -105,6 +115,8 @@ export default function ScormPlayer({ resource, enrollment, onResult, onClose })
       </div>
       <div className="scorm-notice">
         {error && <div className="error" role="alert">{error}</div>}
+        {silent && <div className="error" role="alert">Le lecteur de module ne répond pas. Fermez le module puis réessayez ; si cela persiste, prévenez votre organisme de formation.</div>}
+        {expired && <div className="error" role="alert">L’accès aux fichiers du module a expiré après quatre heures. Fermez le module puis relancez-le pour continuer.</div>}
         {unsaved && (
           <div className="error" role="alert">
             Votre avancement n’est pas encore enregistré. Nouvel essai automatique ; gardez cette page ouverte. ({unsaved})

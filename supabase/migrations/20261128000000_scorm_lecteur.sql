@@ -272,8 +272,9 @@ begin
     raise exception 'Données de reprise trop longues';
   end if;
   if p_data->>'session_seconds' is not null then
-    if p_data->>'session_seconds' !~ '^[0-9]{1,5}$' then raise exception 'Durée invalide'; end if;
-    v_seconds := least((p_data->>'session_seconds')::integer, 86400);
+    if p_data->>'session_seconds' !~ '^[0-9]+$' then raise exception 'Durée invalide'; end if;
+    -- Un onglet resté ouvert ne bloque pas l'enregistrement : la séance compte au plus 24 h.
+    v_seconds := least((p_data->>'session_seconds')::numeric, 86400)::integer;
   end if;
 
   insert into public.scorm_attempts (scorm_package_id, enrollment_id, attempt_number, status, lesson_status, started_at)
